@@ -1,10 +1,11 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema, insertPartSchema, insertSavedBuildSchema, insertGuideSchema } from "@shared/schema";
+import { insertUserSchema, insertPartSchema, insertSavedBuildSchema, insertGuideSchema, ISavedBuild } from "@shared/schema";
 import { generateRecommendation, compareParts } from "./ai/recommendation-engine";
 import { WebSocketServer } from "ws";
 import bcrypt from "bcryptjs";
+import { Types } from "mongoose";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication middleware
@@ -31,8 +32,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         password: hashedPassword,
       });
 
-      req.session!.userId = user.id;
-      res.json({ id: user.id, username: user.username });
+req.session!.userId = user._id.toString();
+      res.json({ id: user._id.toString(), username: user.username });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
@@ -47,8 +48,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
-      req.session!.userId = user.id;
-      res.json({ id: user.id, username: user.username });
+req.session!.userId = user._id.toString();
+      res.json({ id: user._id.toString(), username: user.username });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -66,7 +67,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
-      res.json({ id: user.id, username: user.username, email: user.email });
+      res.json({ id: user._id.toString(), username: user.username, email: user.email });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -91,7 +92,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/parts/:id", async (req, res) => {
     try {
-      const part = await storage.getPart(parseInt(req.params.id));
+      const part = await storage.getPart(req.params.id);
       if (!part) {
         return res.status(404).json({ error: "Part not found" });
       }
@@ -114,7 +115,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/parts/:id/price-history", async (req, res) => {
     try {
       const days = req.query.days ? parseInt(req.query.days as string) : 30;
-      const history = await storage.getPriceHistory(parseInt(req.params.id), days);
+      const history = await storage.getPriceHistory(req.params.id, days);
       res.json(history);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -179,7 +180,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/builds/:id", async (req, res) => {
     try {
-      const build = await storage.getSavedBuild(parseInt(req.params.id));
+      const build = await storage.getSavedBuild(req.params.id);
       if (!build) {
         return res.status(404).json({ error: "Build not found" });
       }
@@ -191,11 +192,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/builds", requireAuth, async (req, res) => {
     try {
-      const data = insertSavedBuildSchema.parse({
+      const buildData = insertSavedBuildSchema.parse({
         ...req.body,
-        userId: req.session!.userId,
+        user: req.session!.userId,
       });
-      const build = await storage.createSavedBuild(data);
+      
+      // Convert the build data to match ISavedBuild structure
+      const buildToCreate: Partial<ISavedBuild> = {
+        ...buildData,
+        user: new Types.ObjectId(buildData.user),
+        partsConfig: buildData.partsConfig.map(pc => ({
+          ...pc,
+          part: new Types.ObjectId(pc.part)
+        }))
+      };
+      
+      const build = await storage.createSavedBuild(buildToCreate);
       res.status(201).json(build);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -204,12 +216,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/builds/:id", requireAuth, async (req, res) => {
     try {
-      const build = await storage.getSavedBuild(parseInt(req.params.id));
-      if (!build || build.userId !== req.session!.userId) {
+      const build = await storage.getSavedBuild(req.params.id);
+      if (!build || build.user.toString() !== req.session!.userId) {
         return res.status(404).json({ error: "Build not found" });
       }
 
-      const updated = await storage.updateSavedBuild(parseInt(req.params.id), req.body);
+      const updated = await storage.updateSavedBuild(req.params.id, req.body);
       res.json(updated);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -218,12 +230,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/builds/:id", requireAuth, async (req, res) => {
     try {
-      const build = await storage.getSavedBuild(parseInt(req.params.id));
-      if (!build || build.userId !== req.session!.userId) {
+      const build = await storage.getSavedBuild(req.params.id);
+      if (!build || build.user.toString() !== req.session!.userId) {
         return res.status(404).json({ error: "Build not found" });
       }
 
-      await storage.deleteSavedBuild(parseInt(req.params.id));
+      await storage.deleteSavedBuild(req.params.id);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -245,7 +257,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/guides/:id", async (req, res) => {
     try {
-      const guide = await storage.getGuide(parseInt(req.params.id));
+      const guide = await storage.getGuide(req.params.id);
       if (!guide) {
         return res.status(404).json({ error: "Guide not found" });
       }
@@ -267,7 +279,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/guides/:id", async (req, res) => {
     try {
-      const updated = await storage.updateGuide(parseInt(req.params.id), req.body);
+      const updated = await storage.updateGuide(req.params.id, req.body);
       if (!updated) {
         return res.status(404).json({ error: "Guide not found" });
       }
@@ -279,7 +291,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/guides/:id", async (req, res) => {
     try {
-      await storage.deleteGuide(parseInt(req.params.id));
+      await storage.deleteGuide(req.params.id);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -308,7 +320,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/bookmarks/:guideId", requireAuth, async (req, res) => {
     try {
-      await storage.deleteBookmark(req.session!.userId!, parseInt(req.params.guideId));
+      await storage.deleteBookmark(req.session!.userId!, req.params.guideId);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

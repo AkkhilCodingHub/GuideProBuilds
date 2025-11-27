@@ -1,111 +1,210 @@
-import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, serial, timestamp, boolean, jsonb, decimal } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
-import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod";
+import { Schema, model, Document, Types, Model } from 'mongoose';
+import { z } from 'zod';
 
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
-  email: text("email").unique(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+// User Schema
+const userSchema = new Schema({
+  username: { type: String, required: true, unique: true, trim: true },
+  password: { type: String, required: true },
+  email: { type: String, unique: true, trim: true, lowercase: true },
+  createdAt: { type: Date, default: Date.now }
 });
 
-export const usersRelations = relations(users, ({ many }) => ({
-  savedBuilds: many(savedBuilds),
-  bookmarkedGuides: many(bookmarkedGuides),
-}));
-
-export const parts = pgTable("parts", {
-  id: serial("id").primaryKey(),
-  externalId: text("external_id").unique(),
-  type: text("type").notNull(),
-  name: text("name").notNull(),
-  brand: text("brand").notNull(),
-  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
-  specs: jsonb("specs").notNull().$type<Record<string, string | number>>(),
-  description: text("description"),
-  imageUrl: text("image_url"),
-  compatibility: jsonb("compatibility").$type<string[]>(),
-  pcPartPickerUrl: text("pc_part_picker_url"),
-  lastUpdated: timestamp("last_updated").defaultNow().notNull(),
+// Part Schema
+const partSchema = new Schema({
+  externalId: { type: String, unique: true },
+  type: { type: String, required: true, index: true },
+  name: { type: String, required: true },
+  brand: { type: String, required: true, index: true },
+  price: { type: Number, required: true, min: 0 },
+  specs: { type: Schema.Types.Mixed, required: true },
+  description: String,
+  imageUrl: String,
+  compatibility: [{ type: String }],
+  pcPartPickerUrl: String,
+  lastUpdated: { type: Date, default: Date.now }
 });
 
-export const savedBuilds = pgTable("saved_builds", {
-  id: serial("id").primaryKey(),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  name: text("name").notNull(),
-  description: text("description"),
-  category: text("category").notNull(),
-  totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
-  partsConfig: jsonb("parts_config").notNull().$type<{ partId: number; type: string; name: string; price: number }[]>(),
-  pcPartPickerUrl: text("pc_part_picker_url"),
-  isPublic: boolean("is_public").default(false),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+// Saved Build Schema
+const savedBuildSchema = new Schema({
+  user: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  name: { type: String, required: true },
+  description: String,
+  category: { type: String, required: true },
+  totalPrice: { type: Number, required: true, min: 0 },
+  partsConfig: [{
+    part: { type: Schema.Types.ObjectId, ref: 'Part' },
+    type: String,
+    name: String,
+    price: Number
+  }],
+  pcPartPickerUrl: String,
+  isPublic: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now, index: -1 },
+  updatedAt: { type: Date, default: Date.now }
 });
 
-export const savedBuildsRelations = relations(savedBuilds, ({ one }) => ({
-  user: one(users, {
-    fields: [savedBuilds.userId],
-    references: [users.id],
-  }),
-}));
-
-export const guides = pgTable("guides", {
-  id: serial("id").primaryKey(),
-  category: text("category").notNull(),
-  title: text("title").notNull(),
-  description: text("description").notNull(),
-  content: text("content").notNull(),
-  readTime: text("read_time"),
-  publishedAt: timestamp("published_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  tags: jsonb("tags").$type<string[]>(),
+// Guide Schema
+const guideSchema = new Schema({
+  category: { type: String, required: true, index: true },
+  title: { type: String, required: true },
+  description: { type: String, required: true },
+  content: { type: String, required: true },
+  readTime: String,
+  publishedAt: { type: Date, default: Date.now, index: -1 },
+  updatedAt: { type: Date, default: Date.now },
+  tags: [{ type: String, index: true }]
 });
 
-export const bookmarkedGuides = pgTable("bookmarked_guides", {
-  id: serial("id").primaryKey(),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  guideId: integer("guide_id").references(() => guides.id).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+// Bookmarked Guide Schema
+const bookmarkedGuideSchema = new Schema({
+  user: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  guide: { type: Schema.Types.ObjectId, ref: 'Guide', required: true },
+  createdAt: { type: Date, default: Date.now }
 });
 
-export const bookmarkedGuidesRelations = relations(bookmarkedGuides, ({ one }) => ({
-  user: one(users, {
-    fields: [bookmarkedGuides.userId],
-    references: [users.id],
-  }),
-  guide: one(guides, {
-    fields: [bookmarkedGuides.guideId],
-    references: [guides.id],
-  }),
-}));
-
-export const priceHistory = pgTable("price_history", {
-  id: serial("id").primaryKey(),
-  partId: integer("part_id").references(() => parts.id).notNull(),
-  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
-  recordedAt: timestamp("recorded_at").defaultNow().notNull(),
+// Price History Schema
+const priceHistorySchema = new Schema({
+  part: { type: Schema.Types.ObjectId, ref: 'Part', required: true, index: true },
+  price: { type: Number, required: true, min: 0 },
+  recordedAt: { type: Date, default: Date.now, index: -1 }
 });
 
-export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
-export const insertPartSchema = createInsertSchema(parts).omit({ id: true, lastUpdated: true });
-export const insertSavedBuildSchema = createInsertSchema(savedBuilds).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertGuideSchema = createInsertSchema(guides).omit({ id: true, publishedAt: true, updatedAt: true });
+// Add compound indexes
+bookmarkedGuideSchema.index({ user: 1, guide: 1 }, { unique: true });
+priceHistorySchema.index({ part: 1, recordedAt: -1 });
 
-export type User = typeof users.$inferSelect;
+// Create and export models with proper typing
+export const User = model<IUser>('User', userSchema) as UserModel;
+export const Part = model<IPart>('Part', partSchema) as PartModel;
+export const SavedBuild = model<ISavedBuild>('SavedBuild', savedBuildSchema) as SavedBuildModel;
+export const Guide = model<IGuide>('Guide', guideSchema) as GuideModel;
+export const BookmarkedGuide = model<IBookmarkedGuide>('BookmarkedGuide', bookmarkedGuideSchema) as BookmarkedGuideModel;
+export const PriceHistory = model<IPriceHistory>('PriceHistory', priceHistorySchema) as PriceHistoryModel;
+
+// Zod Schemas for validation
+export const insertUserSchema = z.object({
+  username: z.string().min(3).max(50).trim(),
+  password: z.string().min(6),
+  email: z.string().email().trim().toLowerCase().optional()
+});
+
+export const insertPartSchema = z.object({
+  externalId: z.string().optional(),
+  type: z.string().min(1),
+  name: z.string().min(1),
+  brand: z.string().min(1),
+  price: z.number().min(0),
+  specs: z.record(z.union([z.string(), z.number()])),
+  description: z.string().optional(),
+  imageUrl: z.string().url().optional(),
+  compatibility: z.array(z.string()).optional(),
+  pcPartPickerUrl: z.string().url().optional()
+});
+
+export const insertSavedBuildSchema = z.object({
+  user: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().optional(),
+  category: z.string().min(1),
+  totalPrice: z.number().min(0),
+  partsConfig: z.array(z.object({
+    part: z.string().min(1),
+    type: z.string(),
+    name: z.string(),
+    price: z.number().min(0)
+  })),
+  pcPartPickerUrl: z.string().url().optional(),
+  isPublic: z.boolean().default(false)
+});
+
+export const insertGuideSchema = z.object({
+  category: z.string().min(1),
+  title: z.string().min(1),
+  description: z.string().min(1),
+  content: z.string().min(1),
+  readTime: z.string().optional(),
+  tags: z.array(z.string()).optional()
+});
+
+// Base interfaces
+export interface IUserBase {
+  username: string;
+  password: string;
+  email?: string | null;
+  createdAt: Date;
+}
+
+export interface IPartBase {
+  externalId?: string | null;
+  type: string;
+  name: string;
+  brand: string;
+  price: number;
+  specs: Record<string, any>;
+  description?: string | null;
+  imageUrl?: string | null;
+  compatibility: string[];
+  pcPartPickerUrl?: string | null;
+  lastUpdated: Date;
+}
+
+export interface ISavedBuildBase {
+  user: Types.ObjectId;
+  name: string;
+  description?: string | null;
+  category: string;
+  totalPrice: number;
+  partsConfig: Array<{
+    part?: Types.ObjectId;
+    type: string;
+    name: string;
+    price: number;
+  }>;
+  pcPartPickerUrl?: string | null;
+  isPublic: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface IGuideBase {
+  category: string;
+  title: string;
+  description: string;
+  content: string;
+  readTime: string;
+  publishedAt: Date;
+  updatedAt: Date;
+  tags: string[];
+}
+
+export interface IBookmarkedGuideBase {
+  user: Types.ObjectId;
+  guide: Types.ObjectId;
+  createdAt: Date;
+}
+
+export interface IPriceHistoryBase {
+  part: Types.ObjectId;
+  price: number;
+  recordedAt: Date;
+}
+
+// Document interfaces
+export interface IUser extends IUserBase, Document {}
+export interface IPart extends IPartBase, Document {}
+export interface ISavedBuild extends ISavedBuildBase, Document {}
+export interface IGuide extends IGuideBase, Document {}
+export interface IBookmarkedGuide extends IBookmarkedGuideBase, Document {}
+export interface IPriceHistory extends IPriceHistoryBase, Document {}
+
+// Model types
+export type UserModel = Model<IUser>;
+export type PartModel = Model<IPart>;
+export type SavedBuildModel = Model<ISavedBuild>;
+export type GuideModel = Model<IGuide>;
+export type BookmarkedGuideModel = Model<IBookmarkedGuide>;
+export type PriceHistoryModel = Model<IPriceHistory>;
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
-
-export type Part = typeof parts.$inferSelect;
 export type InsertPart = z.infer<typeof insertPartSchema>;
-
-export type SavedBuild = typeof savedBuilds.$inferSelect;
 export type InsertSavedBuild = z.infer<typeof insertSavedBuildSchema>;
-
-export type Guide = typeof guides.$inferSelect;
-export type InsertGuide = z.infer<typeof insertGuideSchema>;
-
-export type BookmarkedGuide = typeof bookmarkedGuides.$inferSelect;
-export type PriceHistory = typeof priceHistory.$inferSelect;

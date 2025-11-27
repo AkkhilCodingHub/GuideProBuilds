@@ -5,6 +5,30 @@ import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 export default defineConfig({
+  server: {
+    port: 5000,
+    strictPort: true,
+    host: "0.0.0.0",
+    allowedHosts: ['*'],
+    hmr: {
+      port: 5000,
+      clientPort: 5000,
+      protocol: 'ws',
+      host: 'localhost',
+    },
+    proxy: {
+      '^/api/.*': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api/, '')
+      },
+    },
+    fs: {
+      strict: true,
+      deny: ["**/.*"],
+    },
+  },
   plugins: [
     react(),
     runtimeErrorOverlay(),
@@ -37,13 +61,5 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
-  },
-  server: {
-    host: "0.0.0.0",
-    allowedHosts: true,
-    fs: {
-      strict: true,
-      deny: ["**/.*"],
-    },
   },
 });

@@ -1,9 +1,10 @@
-import OpenAI from "openai";
+import { generateText } from 'ai';
+import { perplexity } from '@ai-sdk/perplexity';
 import { storage } from "../storage";
-import type { Part } from "@shared/schema";
+import type { IPart, IPartBase } from "@shared/schema";
 
-// the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// the newest Perplexity AI model is "sonar-medium-online" which was released recently. do not change this unless explicitly requested by the user
+const ai = perplexity('sonar-medium-online');
 
 export interface RecommendationRequest {
   budget: number;
@@ -17,7 +18,7 @@ export interface BuildRecommendation {
   description: string;
   category: string;
   totalPrice: number;
-  parts: Part[];
+  parts: IPart[];
   reasoning: {
     cpu: string;
     gpu: string;
@@ -28,22 +29,22 @@ export interface BuildRecommendation {
     case: string;
   };
   alternatives: {
-    [key: string]: Part[];
+    [key: string]: IPart[];
   };
 }
 
 export async function generateRecommendation(
   request: RecommendationRequest
 ): Promise<BuildRecommendation> {
-  const allParts: Part[] = await storage.searchParts({});
+  const allParts: IPart[] = await storage.searchParts({});
   
-  const cpus = allParts.filter((p: Part) => p.type === "cpu");
-  const gpus = allParts.filter((p: Part) => p.type === "gpu");
-  const rams = allParts.filter((p: Part) => p.type === "ram");
-  const storageParts = allParts.filter((p: Part) => p.type === "storage");
-  const motherboards = allParts.filter((p: Part) => p.type === "motherboard");
-  const psus = allParts.filter((p: Part) => p.type === "psu");
-  const cases = allParts.filter((p: Part) => p.type === "case");
+  const cpus = allParts.filter((p: IPart) => p.type === "cpu");
+  const gpus = allParts.filter((p: IPart) => p.type === "gpu");
+  const rams = allParts.filter((p: IPart) => p.type === "ram");
+  const storageParts = allParts.filter((p: IPart) => p.type === "storage");
+  const motherboards = allParts.filter((p: IPart) => p.type === "motherboard");
+  const psus = allParts.filter((p: IPart) => p.type === "psu");
+  const cases = allParts.filter((p: IPart) => p.type === "case");
 
   const prompt = `You are an expert PC builder. Given the following requirements, recommend the best PC build:
 
@@ -53,13 +54,13 @@ Performance Level: ${request.performance}
 ${request.brands?.length ? `Preferred Brands: ${request.brands.join(", ")}` : ""}
 
 Available parts database:
-CPUs: ${JSON.stringify(cpus.map((p: Part) => ({ id: p.id, name: p.name, price: p.price, brand: p.brand, specs: p.specs })))}
-GPUs: ${JSON.stringify(gpus.map((p: Part) => ({ id: p.id, name: p.name, price: p.price, brand: p.brand, specs: p.specs })))}
-RAM: ${JSON.stringify(rams.map((p: Part) => ({ id: p.id, name: p.name, price: p.price, brand: p.brand, specs: p.specs })))}
-Storage: ${JSON.stringify(storageParts.map((p: Part) => ({ id: p.id, name: p.name, price: p.price, brand: p.brand, specs: p.specs })))}
-Motherboards: ${JSON.stringify(motherboards.map((p: Part) => ({ id: p.id, name: p.name, price: p.price, brand: p.brand, specs: p.specs })))}
-PSUs: ${JSON.stringify(psus.map((p: Part) => ({ id: p.id, name: p.name, price: p.price, brand: p.brand, specs: p.specs })))}
-Cases: ${JSON.stringify(cases.map((p: Part) => ({ id: p.id, name: p.name, price: p.price, brand: p.brand, specs: p.specs })))}
+CPUs: ${JSON.stringify(cpus.map((p: IPart) => ({ id: p._id.toString(), name: p.name, price: p.price, brand: p.brand, specs: p.specs })))}
+GPUs: ${JSON.stringify(gpus.map((p: IPart) => ({ id: p._id.toString(), name: p.name, price: p.price, brand: p.brand, specs: p.specs })))}
+RAM: ${JSON.stringify(rams.map((p: IPart) => ({ id: p._id.toString(), name: p.name, price: p.price, brand: p.brand, specs: p.specs })))}
+Storage: ${JSON.stringify(storageParts.map((p: IPart) => ({ id: p._id.toString(), name: p.name, price: p.price, brand: p.brand, specs: p.specs })))}
+Motherboards: ${JSON.stringify(motherboards.map((p: IPart) => ({ id: p._id.toString(), name: p.name, price: p.price, brand: p.brand, specs: p.specs })))}
+PSUs: ${JSON.stringify(psus.map((p: IPart) => ({ id: p._id.toString(), name: p.name, price: p.price, brand: p.brand, specs: p.specs })))}
+Cases: ${JSON.stringify(cases.map((p: IPart) => ({ id: p._id.toString(), name: p.name, price: p.price, brand: p.brand, specs: p.specs })))}
 
 Please return a JSON response with the following structure:
 {
@@ -93,110 +94,151 @@ Please return a JSON response with the following structure:
 Ensure compatibility between parts (CPU socket matching motherboard, PSU wattage sufficient, etc.). Stay as close to the budget as possible without exceeding it. Prioritize value and performance for the stated use case.`;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-5",
+    const { text } = await generateText({
+      model: ai,
       messages: [
-        {
-          role: "system",
-          content: "You are an expert PC hardware specialist. Always respond with valid JSON only."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
+        { role: 'system', content: "You are an expert PC builder. Provide detailed recommendations and reasoning for PC part selections. Always respond with valid JSON." },
+        { role: 'user', content: prompt }
       ],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 4096,
+      temperature: 0.7
     });
 
-    const result = JSON.parse(response.choices[0].message.content || "{}");
+    if (!text) {
+      throw new Error("No response from AI");
+    }
+
+    // Extract JSON from the response (removing markdown code blocks if present)
+    const jsonMatch = text.match(/```(?:json)?\n([\s\S]*?)\n```/) || [text];
+    const jsonString = jsonMatch[1] || jsonMatch[0];
+    const result = JSON.parse(jsonString);
     
-    const selectedParts: Part[] = [];
-    const partMap = new Map(allParts.map((p: Part) => [p.id, p]));
+    // Convert the response to the expected format
+    const buildRecommendation: BuildRecommendation = {
+      name: result.name,
+      description: result.description,
+      category: result.category,
+      totalPrice: result.totalPrice || 0,
+      parts: [],
+      reasoning: result.reasoning,
+      alternatives: {}
+    };
+
+    // Get all part IDs from the response
+    const partIds = [
+      result.selectedParts.cpu,
+      result.selectedParts.gpu,
+      result.selectedParts.ram,
+      result.selectedParts.storage,
+      result.selectedParts.motherboard,
+      result.selectedParts.psu,
+      result.selectedParts.case,
+      ...(result.alternatives?.cpu || []),
+      ...(result.alternatives?.gpu || [])
+    ].filter(Boolean);
+
+    // Fetch all parts at once
+    const parts = await Promise.all(
+      partIds.map((id: string) => storage.getPart(id))
+    );
+
+    // Create a map of part IDs to part objects
+    const partMap = new Map(parts.filter((part): part is IPart => part !== null).map(part => [part._id.toString(), part]));
+
+    // Set the selected parts with type safety
+    const selectedParts = [
+      partMap.get(result.selectedParts.cpu),
+      partMap.get(result.selectedParts.gpu),
+      partMap.get(result.selectedParts.ram),
+      partMap.get(result.selectedParts.storage),
+      partMap.get(result.selectedParts.motherboard),
+      partMap.get(result.selectedParts.psu),
+      partMap.get(result.selectedParts.case)
+    ].filter((part): part is IPart => part !== undefined);
     
-    for (const type of ["cpu", "gpu", "ram", "storage", "motherboard", "psu", "case"]) {
-      const partId = result.selectedParts[type];
-      const part = partMap.get(partId);
-      if (part) {
-        selectedParts.push(part);
+    buildRecommendation.parts = selectedParts;
+
+    // Set the alternatives
+    if (result.alternatives) {
+      for (const [partType, alternativeIds] of Object.entries(result.alternatives)) {
+        const alternatives = (alternativeIds as string[])
+          .map((id: string) => partMap.get(id))
+          .filter((part): part is IPart => part !== undefined);
+        buildRecommendation.alternatives[partType] = alternatives;
       }
     }
 
-    const totalPrice = selectedParts.reduce((sum: number, p: Part) => sum + parseFloat(p.price), 0);
+    // Calculate total price
+    buildRecommendation.totalPrice = buildRecommendation.parts.reduce(
+      (sum, part) => sum + part.price,
+      0
+    );
 
-    const alternatives: { [key: string]: Part[] } = {};
-    for (const [type, partIds] of Object.entries(result.alternatives || {})) {
-      alternatives[type] = (partIds as number[])
-        .map((id: number) => partMap.get(id))
-        .filter((p: Part | undefined) => p !== undefined) as Part[];
-    }
-
-    return {
-      name: result.name || "Custom Build",
-      description: result.description || "A balanced PC build",
-      category: result.category || request.useCase,
-      totalPrice,
-      parts: selectedParts,
-      reasoning: result.reasoning || {},
-      alternatives,
-    };
-  } catch (error: any) {
-    console.error("AI recommendation error:", error);
-    throw new Error("Failed to generate AI recommendation");
+    return buildRecommendation;
+  } catch (error) {
+    console.error("Error generating recommendation:", error);
+    throw new Error("Failed to generate recommendation. Please try again later.");
   }
 }
 
-export async function compareParts(partIds: number[]): Promise<{
+export async function compareParts(partIds: string[]): Promise<{
   comparison: any;
-  winner: number;
+  winner: string;
   reasoning: string;
 }> {
-  const parts = await Promise.all(
-    partIds.map((id: number) => storage.getPart(id))
-  );
-
-  const validParts = parts.filter((p: Part | undefined) => p !== undefined) as Part[];
-
-  if (validParts.length < 2) {
-    throw new Error("Need at least 2 parts to compare");
+  if (partIds.length < 2) {
+    throw new Error("At least two part IDs are required for comparison");
   }
 
-  const prompt = `Compare the following PC components and determine which is the best value:
+  const parts = await Promise.all(
+    partIds.map(id => storage.getPart(id))
+  );
 
-${validParts.map((p: Part, i: number) => `
-Part ${i + 1}:
-Name: ${p.name}
-Brand: ${p.brand}
-Price: $${p.price}
-Specs: ${JSON.stringify(p.specs)}
-`).join("\n")}
+  const partDetails = parts.filter((part): part is IPart => part !== null).map(part => ({
+    id: part._id.toString(),
+    name: part.name,
+    type: part.type,
+    brand: part.brand,
+    price: part.price,
+    specs: part.specs
+  }));
 
-Return JSON with:
+  const prompt = `Compare the following PC parts and determine which one is the best based on performance, value, and specifications. Return a JSON object with a detailed comparison, a winner, and reasoning.
+
+Parts to compare:
+${JSON.stringify(partDetails, null, 2)}
+
+Respond with a JSON object in this format:
 {
   "comparison": {
-    "performance": "analysis of performance differences",
-    "value": "price-to-performance analysis",
-    "features": "feature comparison"
+    "performance": "Detailed comparison of performance",
+    "value": "Detailed comparison of value for money",
+    "features": "Detailed comparison of features"
   },
-  "winner": part_index (0-based),
-  "reasoning": "Brief explanation of why this part wins"
+  "winner": "part_id",
+  "reasoning": "Detailed explanation of why this part was chosen as the winner"
 }`;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-5",
-    messages: [
-      { role: "system", content: "You are a PC hardware expert. Respond with JSON only." },
-      { role: "user", content: prompt }
-    ],
-    response_format: { type: "json_object" },
-    max_completion_tokens: 2048,
-  });
+  try {
+    const { text } = await generateText({
+      model: ai,
+      messages: [
+        { role: 'system', content: "You are an expert at comparing PC hardware. Provide detailed comparisons and reasoning for your recommendations. Always respond with valid JSON." },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.7
+    });
 
-  const result = JSON.parse(response.choices[0].message.content || "{}");
+    if (!text) {
+      throw new Error("No response from AI");
+    }
 
-  return {
-    comparison: result.comparison,
-    winner: validParts[result.winner]?.id || validParts[0].id,
-    reasoning: result.reasoning || "Analysis complete",
-  };
+    // Extract JSON from the response (removing markdown code blocks if present)
+    const jsonMatch = text.match(/```(?:json)?\n([\s\S]*?)\n```/) || [text];
+    const jsonString = jsonMatch[1] || jsonMatch[0];
+    
+    return JSON.parse(jsonString);
+  } catch (error) {
+    console.error("Error comparing parts:", error);
+    throw new Error("Failed to compare parts. Please try again later.");
+  }
 }

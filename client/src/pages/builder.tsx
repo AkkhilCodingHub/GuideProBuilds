@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -7,11 +8,17 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { generateBuild, Build } from "@/lib/mockData";
-import { Check, ChevronRight, RotateCcw, ShoppingCart, Share2 } from "lucide-react";
+import { Check, ChevronRight, RotateCcw, ShoppingCart, Share2, Wrench, ListChecks } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { BuildMethodSelector } from "@/components/builder/BuildMethodSelector";
+
+type BuildMethod = 'custom' | 'prebuilt';
 
 export default function Builder() {
+  const [, navigate] = useLocation();
+  const [buildMethod, setBuildMethod] = useState<BuildMethod | null>(null);
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     useCase: "gaming",
@@ -29,8 +36,18 @@ export default function Builder() {
     nextStep();
   };
 
+  const handleMethodSelect = (method: BuildMethod) => {
+    if (method === 'prebuilt') {
+      navigate('/builder/prebuilt');
+    } else {
+      setBuildMethod(method);
+      nextStep();
+    }
+  };
+
   const restart = () => {
     setStep(1);
+    setBuildMethod(null);
     setResult(null);
     setFormData({
       useCase: "gaming",
@@ -38,6 +55,25 @@ export default function Builder() {
       performance: "mid",
     });
   };
+
+  // Render build method selection if no method is selected yet
+  if (!buildMethod && step === 1) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <Navbar />
+        <main className="flex-1 py-12 container px-4 md:px-8">
+          <div className="max-w-4xl mx-auto text-center mb-12">
+            <h1 className="text-3xl font-bold mb-4">Choose Your Build Method</h1>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Select how you'd like to build your PC. You can either create a custom build from scratch or choose from our curated pre-built options.
+            </p>
+          </div>
+          <BuildMethodSelector onSelect={handleMethodSelect} />
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -49,22 +85,26 @@ export default function Builder() {
           <div className="mb-12">
             <div className="flex items-center justify-between relative">
               <div className="absolute left-0 top-1/2 w-full h-1 bg-secondary -z-10 rounded-full" />
-              {[1, 2, 3, 4].map((s) => (
-                <div 
-                  key={s}
-                  className={`flex items-center justify-center w-10 h-10 rounded-full border-4 transition-colors duration-300 bg-background ${
-                    step >= s ? "border-primary text-primary" : "border-secondary text-muted-foreground"
-                  }`}
-                >
-                  {step > s ? <Check className="h-5 w-5" /> : <span className="font-bold">{s}</span>}
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-between mt-2 text-sm font-medium text-muted-foreground px-1">
-              <span>Use Case</span>
-              <span>Budget</span>
-              <span>Preferences</span>
-              <span>Result</span>
+              {[1, 2, 3, 4].map((s) => {
+                let label = '';
+                if (s === 1) label = 'Method';
+                else if (s === 2) label = 'Use Case';
+                else if (s === 3) label = 'Preferences';
+                else if (s === 4) label = 'Result';
+                
+                return (
+                  <div key={s} className="flex flex-col items-center">
+                    <div 
+                      className={`flex items-center justify-center w-10 h-10 rounded-full border-4 transition-colors duration-300 bg-background ${
+                        step >= s ? "border-primary text-primary" : "border-secondary text-muted-foreground"
+                      }`}
+                    >
+                      {step > s ? <Check className="h-5 w-5" /> : <span className="font-bold">{s}</span>}
+                    </div>
+                    <span className="text-xs mt-2 text-muted-foreground">{label}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
