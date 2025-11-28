@@ -6,12 +6,14 @@ import {
   Guide,
   BookmarkedGuide,
   PriceHistory,
+  Cart,
   IUser,
   IPart,
   ISavedBuild,
   IGuide,
   IBookmarkedGuide,
   IPriceHistory,
+  ICart,
   InsertUser,
   InsertPart,
   InsertSavedBuild
@@ -62,6 +64,32 @@ export interface IStorage {
   // Price history
   recordPrice(partId: string, price: number): Promise<void>;
   getPriceHistory(partId: string, days: number): Promise<{ price: string; recordedAt: Date }[]>;
+  
+  // Enhanced parts operations
+  searchPartsAdvanced(filters: {
+    type?: string;
+    brand?: string;
+    minPrice?: number;
+    maxPrice?: number;
+    query?: string;
+    inStock?: boolean;
+    sortBy?: 'price' | 'name' | 'rating' | 'brand';
+    sortOrder?: 'asc' | 'desc';
+    page?: number;
+    limit?: number;
+  }): Promise<{ parts: IPart[]; total: number; page: number; totalPages: number }>;
+  getPartsByIds(ids: string[]): Promise<IPart[]>;
+  getAllBrands(): Promise<string[]>;
+  getAllPartTypes(): Promise<string[]>;
+  
+  // Cart operations
+  getCart(userId?: string, sessionId?: string): Promise<ICart | null>;
+  getOrCreateCart(userId?: string, sessionId?: string): Promise<ICart>;
+  addToCart(cartId: string, partId: string, quantity: number): Promise<ICart>;
+  updateCartItem(cartId: string, partId: string, quantity: number): Promise<ICart>;
+  removeFromCart(cartId: string, partId: string): Promise<ICart>;
+  clearCart(cartId: string): Promise<ICart>;
+  getCartWithParts(cartId: string): Promise<{ cart: ICart; parts: IPart[] } | null>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -269,6 +297,165 @@ async createSavedBuild(build: Partial<ISavedBuild>): Promise<ISavedBuild> {
       price: item.price.toString(),
       recordedAt: item.recordedAt
     }));
+  }
+
+  async searchPartsAdvanced(filters: {
+    type?: string;
+    brand?: string;
+    minPrice?: number;
+    maxPrice?: number;
+    query?: string;
+    inStock?: boolean;
+    sortBy?: 'price' | 'name' | 'rating' | 'brand';
+    sortOrder?: 'asc' | 'desc';
+    page?: number;
+    limit?: number;
+  }): Promise<{ parts: IPart[]; total: number; page: number; totalPages: number }> {
+    const mongoQuery: any = {};
+    
+    if (filters.type) mongoQuery.type = filters.type;
+    if (filters.brand) mongoQuery.brand = filters.brand;
+    if (filters.minPrice !== undefined) mongoQuery.price = { ...mongoQuery.price, $gte: filters.minPrice };
+    if (filters.maxPrice !== undefined) mongoQuery.price = { ...mongoQuery.price, $lte: filters.maxPrice };
+    if (filters.query) {
+      mongoQuery.$or = [
+        { name: { $regex: filters.query, $options: 'i' } },
+        { brand: { $regex: filters.query, $options: 'i' } },
+        { description: { $regex: filters.query, $options: 'i' } }
+      ];
+    }
+    if (filters.inStock !== undefined) mongoQuery.inStock = filters.inStock;
+
+    const page = filters.page || 1;
+    const limit = filters.limit || 20;
+    const skip = (page - 1) * limit;
+
+    const sortField = filters.sortBy || 'name';
+    const sortOrder = filters.sortOrder === 'desc' ? -1 : 1;
+
+    const [parts, total] = await Promise.all([
+      Part.find(mongoQuery)
+        .sort({ [sortField]: sortOrder })
+        .skip(skip)
+        .limit(limit)
+        .lean<IPart[]>()
+        .exec(),
+      Part.countDocuments(mongoQuery).exec()
+    ]);
+
+    return {
+      parts,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit)
+    };
+  }
+
+  async getPartsByIds(ids: string[]): Promise<IPart[]> {
+    const objectIds = ids.map(id => new Types.ObjectId(id));
+    return Part.find({ _id: { $in: objectIds } }).lean<IPart[]>().exec();
+  }
+
+  async getAllBrands(): Promise<string[]> {
+    return Part.distinct('brand').exec();
+  }
+
+  async getAllPartTypes(): Promise<string[]> {
+    return Part.distinct('type').exec();
+  }
+
+  async getCart(userId?: string, sessionId?: string): Promise<ICart | null> {
+    const query: any = {};
+    if (userId) query.user = new Types.ObjectId(userId);
+    else if (sessionId) query.sessionId = sessionId;
+    else return null;
+    
+    return Cart.findOne(query).lean<ICart>().exec();
+  }
+
+  async getOrCreateCart(userId?: string, sessionId?: string): Promise<ICart> {
+    const existingCart = await this.getCart(userId, sessionId);
+    if (existingCart) return existingCart;
+
+    const newCart = await Cart.create({
+      user: userId ? new Types.ObjectId(userId) : undefined,
+      sessionId: sessionId || undefined,
+      items: [],
+      currency: 'USD',
+      region: 'US'
+    });
+    return newCart.toObject() as ICart;
+  }
+
+  async addToCart(cartId: string, partId: string, quantity: number): Promise<ICart> {
+    const cart = await Cart.findById(cartId);
+    if (!cart) throw new Error('Cart not found');
+
+    const existingItem = cart.items.find(
+      item => item.part.toString() === partId
+    );
+
+    if (existingItem) {
+      existingItem.quantity += quantity;
+    } else {
+      cart.items.push({
+        part: new Types.ObjectId(partId),
+        quantity,
+        addedAt: new Date()
+      });
+    }
+
+    cart.updatedAt = new Date();
+    await cart.save();
+    return cart.toObject() as ICart;
+  }
+
+  async updateCartItem(cartId: string, partId: string, quantity: number): Promise<ICart> {
+    const cart = await Cart.findById(cartId);
+    if (!cart) throw new Error('Cart not found');
+
+    if (quantity <= 0) {
+      cart.items = cart.items.filter(item => item.part.toString() !== partId);
+    } else {
+      const item = cart.items.find(item => item.part.toString() === partId);
+      if (item) {
+        item.quantity = quantity;
+      }
+    }
+
+    cart.updatedAt = new Date();
+    await cart.save();
+    return cart.toObject() as ICart;
+  }
+
+  async removeFromCart(cartId: string, partId: string): Promise<ICart> {
+    const cart = await Cart.findById(cartId);
+    if (!cart) throw new Error('Cart not found');
+
+    cart.items = cart.items.filter(item => item.part.toString() !== partId);
+    cart.updatedAt = new Date();
+    await cart.save();
+    return cart.toObject() as ICart;
+  }
+
+  async clearCart(cartId: string): Promise<ICart> {
+    const cart = await Cart.findById(cartId);
+    if (!cart) throw new Error('Cart not found');
+
+    cart.items = [];
+    cart.updatedAt = new Date();
+    await cart.save();
+    return cart.toObject() as ICart;
+  }
+
+  async getCartWithParts(cartId: string): Promise<{ cart: ICart; parts: IPart[] } | null> {
+    const cart = await Cart.findById(cartId).lean<ICart>().exec();
+    if (!cart) return null;
+
+    const partIds = cart.items.map(item => item.part.toString());
+    const parts = await this.getPartsByIds(partIds);
+
+    return { cart, parts };
   }
 }
 

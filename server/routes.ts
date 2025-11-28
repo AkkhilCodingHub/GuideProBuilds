@@ -327,6 +327,258 @@ req.session!.userId = user._id.toString();
     }
   });
 
+  // Enhanced Parts Browser API
+  app.get("/api/parts/browse", async (req, res) => {
+    try {
+      const filters = {
+        type: req.query.type as string | undefined,
+        brand: req.query.brand as string | undefined,
+        minPrice: req.query.minPrice ? parseFloat(req.query.minPrice as string) : undefined,
+        maxPrice: req.query.maxPrice ? parseFloat(req.query.maxPrice as string) : undefined,
+        query: req.query.query as string | undefined,
+        inStock: req.query.inStock === 'true' ? true : req.query.inStock === 'false' ? false : undefined,
+        sortBy: req.query.sortBy as 'price' | 'name' | 'rating' | 'brand' | undefined,
+        sortOrder: req.query.sortOrder as 'asc' | 'desc' | undefined,
+        page: req.query.page ? parseInt(req.query.page as string) : 1,
+        limit: req.query.limit ? parseInt(req.query.limit as string) : 20
+      };
+      
+      const result = await storage.searchPartsAdvanced(filters);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/parts/brands", async (req, res) => {
+    try {
+      const brands = await storage.getAllBrands();
+      res.json(brands);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/parts/types", async (req, res) => {
+    try {
+      const types = await storage.getAllPartTypes();
+      res.json(types);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/parts/batch", async (req, res) => {
+    try {
+      const { ids } = req.body;
+      if (!Array.isArray(ids)) {
+        return res.status(400).json({ error: "ids must be an array" });
+      }
+      const parts = await storage.getPartsByIds(ids);
+      res.json(parts);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Cart API routes
+  app.get("/api/cart", async (req, res) => {
+    try {
+      const userId = req.session?.userId;
+      const sessionId = req.sessionID;
+      
+      const cart = await storage.getOrCreateCart(userId, sessionId);
+      if (!cart) {
+        return res.json({ items: [], total: 0 });
+      }
+      
+      const cartWithParts = await storage.getCartWithParts(cart._id.toString());
+      if (!cartWithParts) {
+        return res.json({ items: [], total: 0 });
+      }
+
+      const { cart: cartData, parts } = cartWithParts;
+      const partsMap = new Map(parts.map(p => [p._id.toString(), p]));
+      
+      const items = cartData.items.map(item => {
+        const part = partsMap.get(item.part.toString());
+        return {
+          partId: item.part.toString(),
+          quantity: item.quantity,
+          part: part || null
+        };
+      }).filter(item => item.part !== null);
+
+      const total = items.reduce((sum, item) => 
+        sum + (item.part?.price || 0) * item.quantity, 0
+      );
+
+      res.json({
+        id: cartData._id,
+        items,
+        total,
+        currency: cartData.currency,
+        region: cartData.region,
+        itemCount: items.length
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/cart/add", async (req, res) => {
+    try {
+      const { partId, quantity = 1 } = req.body;
+      if (!partId) {
+        return res.status(400).json({ error: "partId is required" });
+      }
+
+      const userId = req.session?.userId;
+      const sessionId = req.sessionID;
+      
+      const cart = await storage.getOrCreateCart(userId, sessionId);
+      await storage.addToCart(cart._id.toString(), partId, quantity);
+      
+      res.json({ success: true, message: "Item added to cart" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/cart/update", async (req, res) => {
+    try {
+      const { partId, quantity } = req.body;
+      if (!partId || quantity === undefined) {
+        return res.status(400).json({ error: "partId and quantity are required" });
+      }
+
+      const userId = req.session?.userId;
+      const sessionId = req.sessionID;
+      
+      const cart = await storage.getCart(userId, sessionId);
+      if (!cart) {
+        return res.status(404).json({ error: "Cart not found" });
+      }
+      
+      await storage.updateCartItem(cart._id.toString(), partId, quantity);
+      res.json({ success: true, message: "Cart updated" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/cart/remove/:partId", async (req, res) => {
+    try {
+      const { partId } = req.params;
+      const userId = req.session?.userId;
+      const sessionId = req.sessionID;
+      
+      const cart = await storage.getCart(userId, sessionId);
+      if (!cart) {
+        return res.status(404).json({ error: "Cart not found" });
+      }
+      
+      await storage.removeFromCart(cart._id.toString(), partId);
+      res.json({ success: true, message: "Item removed from cart" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/cart/clear", async (req, res) => {
+    try {
+      const userId = req.session?.userId;
+      const sessionId = req.sessionID;
+      
+      const cart = await storage.getCart(userId, sessionId);
+      if (!cart) {
+        return res.status(404).json({ error: "Cart not found" });
+      }
+      
+      await storage.clearCart(cart._id.toString());
+      res.json({ success: true, message: "Cart cleared" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Compatibility check API
+  app.post("/api/compatibility/check", async (req, res) => {
+    try {
+      const { partIds } = req.body;
+      if (!Array.isArray(partIds) || partIds.length === 0) {
+        return res.status(400).json({ error: "partIds must be a non-empty array" });
+      }
+
+      const parts = await storage.getPartsByIds(partIds);
+      const issues: string[] = [];
+      let compatible = true;
+
+      // Find CPU and motherboard
+      const cpu = parts.find(p => p.type === 'cpu');
+      const motherboard = parts.find(p => p.type === 'motherboard');
+      const ram = parts.find(p => p.type === 'ram');
+      const gpu = parts.find(p => p.type === 'gpu');
+      const psu = parts.find(p => p.type === 'psu');
+      const cooler = parts.find(p => p.type === 'cooling');
+
+      // Check CPU-Motherboard socket compatibility
+      if (cpu && motherboard) {
+        const cpuSocket = cpu.specs?.socket;
+        const moboSocket = motherboard.specs?.socket;
+        if (cpuSocket && moboSocket && cpuSocket !== moboSocket) {
+          issues.push(`CPU socket (${cpuSocket}) is not compatible with motherboard socket (${moboSocket})`);
+          compatible = false;
+        }
+      }
+
+      // Check RAM-Motherboard memory type compatibility
+      if (ram && motherboard) {
+        const ramType = ram.specs?.type;
+        const moboMemoryType = motherboard.specs?.memoryType;
+        if (ramType && moboMemoryType && ramType !== moboMemoryType) {
+          issues.push(`RAM type (${ramType}) is not compatible with motherboard memory type (${moboMemoryType})`);
+          compatible = false;
+        }
+      }
+
+      // Check CPU-Cooler socket compatibility
+      if (cpu && cooler) {
+        const cpuSocket = cpu.specs?.socket;
+        const coolerCompatibility = cooler.compatibility || [];
+        if (cpuSocket && coolerCompatibility.length > 0 && !coolerCompatibility.includes(cpuSocket)) {
+          issues.push(`CPU cooler may not be compatible with ${cpuSocket} socket`);
+          compatible = false;
+        }
+      }
+
+      // Check PSU wattage (estimate total power)
+      if (psu) {
+        let estimatedPower = 100; // Base system power
+        if (cpu) estimatedPower += 125; // Average CPU TDP
+        if (gpu && gpu.specs?.tdp) {
+          estimatedPower += typeof gpu.specs.tdp === 'number' ? gpu.specs.tdp : parseInt(gpu.specs.tdp);
+        }
+        
+        const psuWattage = typeof psu.specs?.wattage === 'number' 
+          ? psu.specs.wattage 
+          : parseInt(psu.specs?.wattage?.replace('W', '') || '0');
+        
+        if (psuWattage > 0 && estimatedPower > psuWattage * 0.8) {
+          issues.push(`PSU (${psuWattage}W) may be insufficient for estimated power draw (~${estimatedPower}W). Consider 20% headroom.`);
+        }
+      }
+
+      res.json({
+        compatible,
+        issues,
+        checkedParts: parts.map(p => ({ id: p._id, name: p.name, type: p.type }))
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // WebSocket server for real-time price updates
   const httpServer = createServer(app);
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });

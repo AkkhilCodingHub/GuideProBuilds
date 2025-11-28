@@ -8,12 +8,14 @@ import Home from "@/pages/home";
 import Builder from "@/pages/builder";
 import Compare from "@/pages/compare";
 import Guides from "@/pages/guides";
+import Parts from "@/pages/parts";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/builder" component={Builder} />
+      <Route path="/parts" component={Parts} />
       <Route path="/compare" component={Compare} />
       <Route path="/guides" component={Guides} />
       <Route component={NotFound} />

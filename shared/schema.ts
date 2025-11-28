@@ -21,6 +21,10 @@ const partSchema = new Schema({
   imageUrl: String,
   compatibility: [{ type: String }],
   pcPartPickerUrl: String,
+  inStock: { type: Boolean, default: true },
+  stockCount: { type: Number, default: 100 },
+  rating: { type: Number, min: 0, max: 5, default: 4.0 },
+  reviewCount: { type: Number, default: 0 },
   lastUpdated: { type: Date, default: Date.now }
 });
 
@@ -69,9 +73,26 @@ const priceHistorySchema = new Schema({
   recordedAt: { type: Date, default: Date.now, index: -1 }
 });
 
+// Cart Schema - for storing user's current build/cart
+const cartSchema = new Schema({
+  user: { type: Schema.Types.ObjectId, ref: 'User', index: true },
+  sessionId: { type: String, index: true },
+  items: [{
+    part: { type: Schema.Types.ObjectId, ref: 'Part', required: true },
+    quantity: { type: Number, required: true, default: 1, min: 1 },
+    addedAt: { type: Date, default: Date.now }
+  }],
+  currency: { type: String, default: 'USD' },
+  region: { type: String, default: 'US' },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
 // Add compound indexes
 bookmarkedGuideSchema.index({ user: 1, guide: 1 }, { unique: true });
 priceHistorySchema.index({ part: 1, recordedAt: -1 });
+cartSchema.index({ user: 1 }, { sparse: true });
+cartSchema.index({ sessionId: 1 }, { sparse: true });
 
 // Create and export models with proper typing
 export const User = model<IUser>('User', userSchema) as UserModel;
@@ -80,6 +101,7 @@ export const SavedBuild = model<ISavedBuild>('SavedBuild', savedBuildSchema) as 
 export const Guide = model<IGuide>('Guide', guideSchema) as GuideModel;
 export const BookmarkedGuide = model<IBookmarkedGuide>('BookmarkedGuide', bookmarkedGuideSchema) as BookmarkedGuideModel;
 export const PriceHistory = model<IPriceHistory>('PriceHistory', priceHistorySchema) as PriceHistoryModel;
+export const Cart = model<ICart>('Cart', cartSchema) as CartModel;
 
 // Zod Schemas for validation
 export const insertUserSchema = z.object({
@@ -126,6 +148,29 @@ export const insertGuideSchema = z.object({
   tags: z.array(z.string()).optional()
 });
 
+export const addToCartSchema = z.object({
+  partId: z.string().min(1),
+  quantity: z.number().int().min(1).default(1)
+});
+
+export const updateCartItemSchema = z.object({
+  partId: z.string().min(1),
+  quantity: z.number().int().min(0)
+});
+
+export const partsFilterSchema = z.object({
+  type: z.string().optional(),
+  brand: z.string().optional(),
+  minPrice: z.number().optional(),
+  maxPrice: z.number().optional(),
+  query: z.string().optional(),
+  inStock: z.boolean().optional(),
+  sortBy: z.enum(['price', 'name', 'rating', 'brand']).optional(),
+  sortOrder: z.enum(['asc', 'desc']).optional(),
+  page: z.number().int().min(1).optional(),
+  limit: z.number().int().min(1).max(100).optional()
+});
+
 // Base interfaces
 export interface IUserBase {
   username: string;
@@ -145,6 +190,10 @@ export interface IPartBase {
   imageUrl?: string | null;
   compatibility: string[];
   pcPartPickerUrl?: string | null;
+  inStock: boolean;
+  stockCount: number;
+  rating: number;
+  reviewCount: number;
   lastUpdated: Date;
 }
 
@@ -189,6 +238,22 @@ export interface IPriceHistoryBase {
   recordedAt: Date;
 }
 
+export interface ICartItem {
+  part: Types.ObjectId;
+  quantity: number;
+  addedAt: Date;
+}
+
+export interface ICartBase {
+  user?: Types.ObjectId;
+  sessionId?: string;
+  items: ICartItem[];
+  currency: string;
+  region: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // Document interfaces
 export interface IUser extends IUserBase, Document {}
 export interface IPart extends IPartBase, Document {}
@@ -196,6 +261,7 @@ export interface ISavedBuild extends ISavedBuildBase, Document {}
 export interface IGuide extends IGuideBase, Document {}
 export interface IBookmarkedGuide extends IBookmarkedGuideBase, Document {}
 export interface IPriceHistory extends IPriceHistoryBase, Document {}
+export interface ICart extends ICartBase, Document {}
 
 // Model types
 export type UserModel = Model<IUser>;
@@ -204,7 +270,12 @@ export type SavedBuildModel = Model<ISavedBuild>;
 export type GuideModel = Model<IGuide>;
 export type BookmarkedGuideModel = Model<IBookmarkedGuide>;
 export type PriceHistoryModel = Model<IPriceHistory>;
+export type CartModel = Model<ICart>;
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertPart = z.infer<typeof insertPartSchema>;
 export type InsertSavedBuild = z.infer<typeof insertSavedBuildSchema>;
+export type InsertGuide = z.infer<typeof insertGuideSchema>;
+export type AddToCart = z.infer<typeof addToCartSchema>;
+export type UpdateCartItem = z.infer<typeof updateCartItemSchema>;
+export type PartsFilter = z.infer<typeof partsFilterSchema>;
