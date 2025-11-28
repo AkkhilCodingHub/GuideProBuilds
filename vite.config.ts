@@ -10,12 +10,11 @@ export default defineConfig({
     port: 5000,
     strictPort: true,
     host: "0.0.0.0",
-    allowedHosts: ['*'],
+    allowedHosts: 'all',
     hmr: {
-      port: 5000,
-      clientPort: 5000,
-      protocol: 'ws',
+      protocol: 'wss',
       host: 'localhost',
+      port: 5000,
     },
     proxy: {
       '^/api/.*': {
