@@ -4,6 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
+// mongoimport  (103.87.27.240) nF4!xZ2qP9@tVr7#Lk1 mongopass
 export default defineConfig({
   server: {
     port: 5000,

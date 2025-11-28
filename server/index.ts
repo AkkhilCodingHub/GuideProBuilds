@@ -2,10 +2,16 @@ import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import supportRoutes from '../src/features/support/api/support.routes';
+import cors from 'cors';
+import http from 'http';
 
 // Verify required environment variables
-if (!process.env.PERPLEXITY_API_KEY) {
-  console.error('Error: PERPLEXITY_API_KEY environment variable is not set');
+const requiredEnvVars = ['PERPLEXITY_API_KEY', 'SUPPORT_EMAIL', 'RESEND_API_KEY'];
+const missingEnvVars = requiredEnvVars.filter(env => !process.env[env]);
+
+if (missingEnvVars.length > 0) {
+  console.error(`Error: Missing required environment variables: ${missingEnvVars.join(', ')}`);
   process.exit(1);
 }
 
@@ -16,6 +22,9 @@ declare module 'http' {
     rawBody: unknown
   }
 }
+
+// Middleware
+app.use(cors());
 app.use(express.json({
   verify: (req, _res, buf) => {
     req.rawBody = buf;
@@ -23,66 +32,57 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: false }));
 
+// Logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
+  const originalJson = res.json;
+  res.json = function (body) {
+    capturedJsonResponse = body;
+    return originalJson.call(this, body);
   };
 
-  res.on("finish", () => {
+  res.on('finish', () => {
     const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
+    log(`${req.method} ${path} ${res.statusCode} - ${duration}ms`);
+    if (capturedJsonResponse) {
+      log('Response:', JSON.stringify(capturedJsonResponse, null, 2));
     }
   });
 
   next();
 });
 
-(async () => {
-  const server = await registerRoutes(app);
+// API Routes
+app.use('/api/support', supportRoutes);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+// Register other routes
+registerRoutes(app);
 
-    res.status(status).json({ message });
-    throw err;
+// Error handling middleware
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  console.error('Error:', err);
+  res.status(500).json({
+    success: false,
+    message: 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined,
   });
+});
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
-    serveStatic(app);
-  }
+/// Vite setup
+if (process.env.NODE_ENV === 'development') {
+  const server = http.createServer(app);
+  setupVite(app, server).catch(console.error);
+} else {
+  serveStatic(app);
+}
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '3000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
-  });
-})();
+const PORT = parseInt(process.env.PORT || '3000', 10);
+const server = http.createServer(app);
+server.listen(PORT, '0.0.0.0', () => {
+  log(`Server running on http://localhost:${PORT}`);
+});
+
+export { app, server };
