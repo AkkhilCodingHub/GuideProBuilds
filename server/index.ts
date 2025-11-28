@@ -11,8 +11,12 @@ const requiredEnvVars = ['PERPLEXITY_API_KEY', 'SUPPORT_EMAIL', 'RESEND_API_KEY'
 const missingEnvVars = requiredEnvVars.filter(env => !process.env[env]);
 
 if (missingEnvVars.length > 0) {
-  console.error(`Error: Missing required environment variables: ${missingEnvVars.join(', ')}`);
-  process.exit(1);
+  if (process.env.NODE_ENV === 'production') {
+    console.error(`Error: Missing required environment variables: ${missingEnvVars.join(', ')}`);
+    process.exit(1);
+  } else {
+    console.warn(`Warning: Missing environment variables (AI/email features will be limited): ${missingEnvVars.join(', ')}`);
+  }
 }
 
 const app = express();
@@ -71,15 +75,18 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
-/// Vite setup
-if (process.env.NODE_ENV === 'development') {
-  const server = http.createServer(app);
-  setupVite(app, server).catch(console.error);
-} else {
+// In development, Express runs on port 3000 (API only, Vite handles frontend on 5000)
+// In production, Express runs on PORT env var (serves static files + API)
+const PORT = process.env.NODE_ENV === 'development' 
+  ? 3000 
+  : parseInt(process.env.PORT || '5000', 10);
+
+// In development, run as API server only (Vite handles the frontend)
+// In production, serve static files and act as full server
+if (process.env.NODE_ENV !== 'development') {
   serveStatic(app);
 }
 
-const PORT = parseInt(process.env.PORT || '3000', 10);
 const server = http.createServer(app);
 server.listen(PORT, '0.0.0.0', () => {
   log(`Server running on http://localhost:${PORT}`);
