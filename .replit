@@ -55,3 +55,8 @@ waitForPort = 5000
 mockupState = "FULLSTACK"
 integrations = ["javascript_openai:1.0.0"]
 expertMode = true
+
+[userenv]
+
+[userenv.shared]
+SUPPORT_EMAIL = "ctechmtv@gmail.com"

@@ -12,7 +12,8 @@ export default defineConfig({
     host: "0.0.0.0",
     allowedHosts: [
       'all',
-      'c3b84242-00f7-4826-8ecd-eadfc2d1095b-00-1d4pgor8p63pn.worf.replit.dev'
+      'c3b84242-00f7-4826-8ecd-eadfc2d1095b-00-1d4pgor8p63pn.worf.replit.dev',
+      '8d9f23c3-dee7-4afa-9844-11f36d9b77e1-00-tuumndcnprge.picard.replit.dev'
     ],
     hmr: {
       protocol: 'wss',
