@@ -9,6 +9,7 @@ import Builder from "@/pages/builder";
 import Compare from "@/pages/compare";
 import Guides from "@/pages/guides";
 import Parts from "@/pages/parts";
+import Support from "@/pages/support";
 
 function Router() {
   return (
@@ -18,6 +19,7 @@ function Router() {
       <Route path="/parts" component={Parts} />
       <Route path="/compare" component={Compare} />
       <Route path="/guides" component={Guides} />
+      <Route path="/support" component={Support} />
       <Route component={NotFound} />
     </Switch>
   );

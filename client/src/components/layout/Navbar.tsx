@@ -14,6 +14,7 @@ export function Navbar() {
     { href: "/parts", label: "Browse Parts" },
     { href: "/compare", label: "Compare" },
     { href: "/guides", label: "Guides" },
+    { href: "/support", label: "Support" },
   ];
 
   const isActive = (path: string) => location === path;
