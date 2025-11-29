@@ -7,6 +7,7 @@ import {
   BookmarkedGuide,
   PriceHistory,
   Cart,
+  Order,
   IUser,
   IPart,
   ISavedBuild,
@@ -14,6 +15,8 @@ import {
   IBookmarkedGuide,
   IPriceHistory,
   ICart,
+  IOrder,
+  IOrderItem,
   InsertUser,
   InsertPart,
   InsertSavedBuild
@@ -90,6 +93,13 @@ export interface IStorage {
   removeFromCart(cartId: string, partId: string): Promise<ICart>;
   clearCart(cartId: string): Promise<ICart>;
   getCartWithParts(cartId: string): Promise<{ cart: ICart; parts: IPart[] } | null>;
+  
+  // Order operations
+  createOrder(order: Partial<IOrder>): Promise<IOrder>;
+  getOrder(id: string): Promise<IOrder | null>;
+  getOrderByNumber(orderNumber: string): Promise<IOrder | null>;
+  updateOrder(id: string, updates: Partial<IOrder>): Promise<IOrder | null>;
+  getUserOrders(userId: string): Promise<IOrder[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -456,6 +466,31 @@ async createSavedBuild(build: Partial<ISavedBuild>): Promise<ISavedBuild> {
     const parts = await this.getPartsByIds(partIds);
 
     return { cart, parts };
+  }
+
+  // Order operations
+  async createOrder(order: Partial<IOrder>): Promise<IOrder> {
+    const newOrder = await Order.create(order);
+    return newOrder.toObject() as IOrder;
+  }
+
+  async getOrder(id: string): Promise<IOrder | null> {
+    return Order.findById(id).lean<IOrder>().exec();
+  }
+
+  async getOrderByNumber(orderNumber: string): Promise<IOrder | null> {
+    return Order.findOne({ orderNumber }).lean<IOrder>().exec();
+  }
+
+  async updateOrder(id: string, updates: Partial<IOrder>): Promise<IOrder | null> {
+    return Order.findByIdAndUpdate(id, updates, { new: true }).lean<IOrder>().exec();
+  }
+
+  async getUserOrders(userId: string): Promise<IOrder[]> {
+    return Order.find({ user: new Types.ObjectId(userId) })
+      .sort({ createdAt: -1 })
+      .lean<IOrder[]>()
+      .exec();
   }
 }
 

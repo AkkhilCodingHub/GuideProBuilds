@@ -10,6 +10,7 @@ import Compare from "@/pages/compare";
 import Guides from "@/pages/guides";
 import Parts from "@/pages/parts";
 import Support from "@/pages/support";
+import Checkout from "@/pages/checkout";
 
 function Router() {
   return (
@@ -20,6 +21,7 @@ function Router() {
       <Route path="/compare" component={Compare} />
       <Route path="/guides" component={Guides} />
       <Route path="/support" component={Support} />
+      <Route path="/checkout" component={Checkout} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { 
   Search, Filter, ShoppingCart, Star, Plus, Minus, 
   Cpu, Monitor, MemoryStick, HardDrive, Zap, Box, Fan, Layers,
-  ChevronLeft, ChevronRight, AlertCircle, Check, X
+  ChevronLeft, ChevronRight, AlertCircle, Check, X, CreditCard
 } from "lucide-react";
 
 interface Part {
@@ -86,6 +87,7 @@ export default function Parts() {
   const [page, setPage] = useState(1);
   const [cartOpen, setCartOpen] = useState(false);
 
+  const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -468,7 +470,19 @@ export default function Parts() {
                           <span>Total</span>
                           <span>${cart.total.toFixed(2)}</span>
                         </div>
-                        <Button className="w-full mt-4" size="lg">
+                        <Button 
+                          className="w-full mt-4" 
+                          size="lg"
+                          onClick={() => {
+                            setCartOpen(false);
+                            setLocation('/checkout');
+                          }}
+                          data-testid="button-proceed-checkout"
+                        >
+                          <CreditCard className="h-4 w-4 mr-2" />
+                          Proceed to Checkout
+                        </Button>
+                        <Button variant="outline" className="w-full mt-2" size="lg" data-testid="button-save-build">
                           Save Build
                         </Button>
                       </div>

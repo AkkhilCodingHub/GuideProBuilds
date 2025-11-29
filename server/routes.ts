@@ -1,11 +1,12 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema, insertPartSchema, insertSavedBuildSchema, insertGuideSchema, ISavedBuild } from "@shared/schema";
+import { insertUserSchema, insertPartSchema, insertSavedBuildSchema, insertGuideSchema, checkoutSchema, ISavedBuild, IOrderItem } from "@shared/schema";
 import { generateRecommendation, compareParts } from "./ai/recommendation-engine";
 import { WebSocketServer } from "ws";
 import bcrypt from "bcryptjs";
 import { Types } from "mongoose";
+import { sendBillingEmail, generateOrderNumber } from "./email";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication middleware
@@ -84,6 +85,60 @@ req.session!.userId = user._id.toString();
         maxPrice: maxPrice ? parseFloat(maxPrice as string) : undefined,
         query: query as string,
       });
+      res.json(parts);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Enhanced Parts Browser API - MUST be defined before /api/parts/:id
+  app.get("/api/parts/browse", async (req, res) => {
+    try {
+      const filters = {
+        type: req.query.type as string | undefined,
+        brand: req.query.brand as string | undefined,
+        minPrice: req.query.minPrice ? parseFloat(req.query.minPrice as string) : undefined,
+        maxPrice: req.query.maxPrice ? parseFloat(req.query.maxPrice as string) : undefined,
+        query: req.query.query as string | undefined,
+        inStock: req.query.inStock === 'true' ? true : req.query.inStock === 'false' ? false : undefined,
+        sortBy: req.query.sortBy as 'price' | 'name' | 'rating' | 'brand' | undefined,
+        sortOrder: req.query.sortOrder as 'asc' | 'desc' | undefined,
+        page: req.query.page ? parseInt(req.query.page as string) : 1,
+        limit: req.query.limit ? parseInt(req.query.limit as string) : 20
+      };
+      
+      const result = await storage.searchPartsAdvanced(filters);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/parts/brands", async (req, res) => {
+    try {
+      const brands = await storage.getAllBrands();
+      res.json(brands);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/parts/types", async (req, res) => {
+    try {
+      const types = await storage.getAllPartTypes();
+      res.json(types);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/parts/batch", async (req, res) => {
+    try {
+      const { ids } = req.body;
+      if (!Array.isArray(ids)) {
+        return res.status(400).json({ error: "ids must be an array" });
+      }
+      const parts = await storage.getPartsByIds(ids);
       res.json(parts);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -327,60 +382,6 @@ req.session!.userId = user._id.toString();
     }
   });
 
-  // Enhanced Parts Browser API
-  app.get("/api/parts/browse", async (req, res) => {
-    try {
-      const filters = {
-        type: req.query.type as string | undefined,
-        brand: req.query.brand as string | undefined,
-        minPrice: req.query.minPrice ? parseFloat(req.query.minPrice as string) : undefined,
-        maxPrice: req.query.maxPrice ? parseFloat(req.query.maxPrice as string) : undefined,
-        query: req.query.query as string | undefined,
-        inStock: req.query.inStock === 'true' ? true : req.query.inStock === 'false' ? false : undefined,
-        sortBy: req.query.sortBy as 'price' | 'name' | 'rating' | 'brand' | undefined,
-        sortOrder: req.query.sortOrder as 'asc' | 'desc' | undefined,
-        page: req.query.page ? parseInt(req.query.page as string) : 1,
-        limit: req.query.limit ? parseInt(req.query.limit as string) : 20
-      };
-      
-      const result = await storage.searchPartsAdvanced(filters);
-      res.json(result);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.get("/api/parts/brands", async (req, res) => {
-    try {
-      const brands = await storage.getAllBrands();
-      res.json(brands);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.get("/api/parts/types", async (req, res) => {
-    try {
-      const types = await storage.getAllPartTypes();
-      res.json(types);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.post("/api/parts/batch", async (req, res) => {
-    try {
-      const { ids } = req.body;
-      if (!Array.isArray(ids)) {
-        return res.status(400).json({ error: "ids must be an array" });
-      }
-      const parts = await storage.getPartsByIds(ids);
-      res.json(parts);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
   // Cart API routes
   app.get("/api/cart", async (req, res) => {
     try {
@@ -497,6 +498,144 @@ req.session!.userId = user._id.toString();
       
       await storage.clearCart(cart._id.toString());
       res.json({ success: true, message: "Cart cleared" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Checkout API - Complete order and send billing email
+  app.post("/api/checkout/complete", async (req, res) => {
+    try {
+      const userId = req.session?.userId;
+      const sessionId = req.sessionID;
+      
+      // Validate checkout data
+      const checkoutData = checkoutSchema.parse(req.body);
+      
+      // Get the cart
+      const cart = await storage.getCart(userId, sessionId);
+      if (!cart || cart.items.length === 0) {
+        return res.status(400).json({ error: "Cart is empty" });
+      }
+      
+      // Get cart with parts details
+      const cartWithParts = await storage.getCartWithParts(cart._id.toString());
+      if (!cartWithParts) {
+        return res.status(400).json({ error: "Failed to retrieve cart items" });
+      }
+      
+      const { parts } = cartWithParts;
+      const partsMap = new Map(parts.map(p => [p._id.toString(), p]));
+      
+      // Build order items with part details
+      const orderItems: IOrderItem[] = cart.items.map(item => {
+        const part = partsMap.get(item.part.toString());
+        if (!part) {
+          throw new Error(`Part ${item.part.toString()} not found`);
+        }
+        return {
+          part: item.part,
+          partName: part.name,
+          partType: part.type,
+          partBrand: part.brand,
+          price: part.price,
+          quantity: item.quantity
+        };
+      });
+      
+      // Calculate totals
+      const subtotal = orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const tax = subtotal * 0.0825; // 8.25% tax
+      const total = subtotal + tax;
+      
+      // Generate order number
+      const orderNumber = generateOrderNumber();
+      
+      // Create the order
+      const order = await storage.createOrder({
+        orderNumber,
+        user: userId ? new Types.ObjectId(userId) : undefined,
+        sessionId,
+        customerName: checkoutData.customerName,
+        customerEmail: checkoutData.customerEmail,
+        items: orderItems,
+        subtotal,
+        tax,
+        total,
+        currency: cart.currency || 'USD',
+        status: 'completed',
+        billingEmailSent: false,
+        createdAt: new Date()
+      });
+      
+      // Send billing email
+      const emailResult = await sendBillingEmail({
+        orderNumber,
+        customerName: checkoutData.customerName,
+        customerEmail: checkoutData.customerEmail,
+        items: orderItems.map(item => ({
+          partName: item.partName,
+          partType: item.partType,
+          partBrand: item.partBrand,
+          price: item.price,
+          quantity: item.quantity
+        })),
+        subtotal,
+        tax,
+        total,
+        currency: cart.currency || 'USD',
+        createdAt: new Date()
+      });
+      
+      // Update order with email status
+      await storage.updateOrder(order._id.toString(), {
+        billingEmailSent: emailResult.success,
+        billingEmailSentAt: emailResult.success ? new Date() : undefined,
+        billingEmailError: emailResult.error
+      });
+      
+      // Clear the cart after successful order
+      await storage.clearCart(cart._id.toString());
+      
+      // Return response with email status
+      res.json({
+        success: true,
+        orderNumber,
+        total,
+        subtotal,
+        tax,
+        currency: cart.currency || 'USD',
+        itemCount: orderItems.length,
+        emailSent: emailResult.success,
+        emailError: emailResult.success ? undefined : emailResult.error,
+        message: emailResult.success 
+          ? `Receipt emailed to ctechmtv@gmail.com`
+          : 'Order completed but email could not be sent. Please contact support.'
+      });
+    } catch (error: any) {
+      console.error('Checkout error:', error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Get order by order number
+  app.get("/api/orders/:orderNumber", async (req, res) => {
+    try {
+      const order = await storage.getOrderByNumber(req.params.orderNumber);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      res.json(order);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get user's orders (requires auth)
+  app.get("/api/orders", requireAuth, async (req, res) => {
+    try {
+      const orders = await storage.getUserOrders(req.session!.userId!);
+      res.json(orders);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
