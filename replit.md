@@ -130,9 +130,17 @@ Preferred communication style: Simple, everyday language.
 - Critical: Core feature dependency
 
 **Resend** (Email Service)
-- Purpose: Support email functionality
+- Purpose: Support email functionality for contact form submissions
 - Authentication: API key via RESEND_API_KEY environment variable
-- Configuration: Support email address via SUPPORT_EMAIL environment variable
+- Configuration: Support email address via SUPPORT_EMAIL environment variable (currently set to ctechmtv@gmail.com)
+- Note: The sending domain must be verified in Resend dashboard for emails to work. If using gmail.com, you need to verify that domain or use a custom domain.
+
+**Support Page** (`/support`)
+- Three-tab interface: FAQs, Troubleshooting, Contact Us
+- Searchable FAQ accordion with 5 categories
+- Troubleshooting quick reference cards and detailed guides
+- Contact form with validation sends tickets to SUPPORT_EMAIL
+- Optional confirmation email to users when they submit a ticket
 
 **PC Part Picker** (Implicit Integration)
 - Purpose: External links to PC Part Picker for builds and parts
