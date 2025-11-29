@@ -10,7 +10,10 @@ export default defineConfig({
     port: 5000,
     strictPort: true,
     host: "0.0.0.0",
-    allowedHosts: 'all',
+    allowedHosts: [
+      'all',
+      'c3b84242-00f7-4826-8ecd-eadfc2d1095b-00-1d4pgor8p63pn.worf.replit.dev'
+    ],
     hmr: {
       protocol: 'wss',
       host: 'localhost',
