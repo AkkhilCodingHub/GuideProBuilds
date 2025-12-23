@@ -16,7 +16,8 @@ export default defineConfig({
     strictPort: true,
     host: "0.0.0.0",
     allowedHosts: [
-      'all'
+      'all',
+      '660e9c7f-3141-4dbd-8183-19ca3ca59670-00-8kbsm0162vfq.worf.replit.dev'
     ],
     hmr: {
       protocol: 'ws',

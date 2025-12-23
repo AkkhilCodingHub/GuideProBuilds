@@ -1,12 +1,12 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema, insertPartSchema, insertSavedBuildSchema, insertGuideSchema, checkoutSchema, ISavedBuild, IOrderItem } from "@shared/schema";
+import { insertUserSchema, insertPartSchema, insertSavedBuildSchema, insertGuideSchema, checkoutSchema, pcRequestSchema, ISavedBuild, IOrderItem } from "@shared/schema";
 import { generateRecommendation, compareParts } from "./ai/recommendation-engine";
 import { WebSocketServer } from "ws";
 import bcrypt from "bcryptjs";
 import { Types } from "mongoose";
-import { sendBillingEmail, generateOrderNumber } from "./email";
+import { sendBillingEmail, sendPCRequestEmail, generateOrderNumber } from "./email";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication middleware
@@ -614,6 +614,51 @@ req.session!.userId = user._id.toString();
       });
     } catch (error: any) {
       console.error('Checkout error:', error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // PC Request API - Send build request to expert builder
+  app.post("/api/pc-request", async (req, res) => {
+    try {
+      const requestData = pcRequestSchema.parse(req.body);
+      
+      const emailResult = await sendPCRequestEmail({
+        customerName: requestData.customerName,
+        customerEmail: requestData.customerEmail,
+        customerPhone: requestData.customerPhone,
+        customerCity: requestData.customerCity,
+        customerBudget: requestData.customerBudget,
+        customerNotes: requestData.customerNotes,
+        items: requestData.items.map(item => ({
+          partName: item.partName,
+          partType: item.partType,
+          partBrand: item.partBrand,
+          price: item.price,
+          quantity: item.quantity
+        })),
+        subtotal: requestData.subtotal,
+        tax: requestData.tax,
+        total: requestData.total,
+        currency: requestData.currency,
+      });
+
+      // Clear the cart after successful request
+      const userId = req.session?.userId;
+      const sessionId = req.sessionID;
+      const cart = await storage.getCart(userId, sessionId);
+      if (cart) {
+        await storage.clearCart(cart._id.toString());
+      }
+
+      res.json({
+        success: true,
+        message: 'Your PC request has been sent to an expert builder. We will contact you through your email soon.',
+        emailSent: emailResult.success,
+        emailError: emailResult.success ? undefined : emailResult.error,
+      });
+    } catch (error: any) {
+      console.error('PC request error:', error);
       res.status(400).json({ error: error.message });
     }
   });

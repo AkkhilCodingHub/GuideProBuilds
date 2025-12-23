@@ -8,6 +8,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -16,7 +17,6 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { 
   ShoppingCart, 
-  CreditCard, 
   Mail, 
   User, 
   CheckCircle2, 
@@ -31,7 +31,11 @@ import {
   Zap,
   Box,
   Fan,
-  Layers
+  Layers,
+  Phone,
+  MapPin,
+  DollarSign,
+  FileText
 } from "lucide-react";
 
 interface Part {
@@ -58,15 +62,9 @@ interface CartResponse {
 
 interface CheckoutResponse {
   success: boolean;
-  orderNumber: string;
-  total: number;
-  subtotal: number;
-  tax: number;
-  currency: string;
-  itemCount: number;
+  message: string;
   emailSent: boolean;
   emailError?: string;
-  message: string;
 }
 
 const partTypeIcons: Record<string, React.ReactNode> = {
@@ -91,12 +89,16 @@ const partTypeLabels: Record<string, string> = {
   cooling: "CPU Cooler",
 };
 
-const checkoutFormSchema = z.object({
+const pcRequestFormSchema = z.object({
   customerName: z.string().min(1, 'Name is required'),
   customerEmail: z.string().email('Please enter a valid email address'),
+  customerPhone: z.string().optional(),
+  customerCity: z.string().optional(),
+  customerBudget: z.string().optional(),
+  customerNotes: z.string().optional(),
 });
 
-type CheckoutFormData = z.infer<typeof checkoutFormSchema>;
+type PCRequestFormData = z.infer<typeof pcRequestFormSchema>;
 
 export default function Checkout() {
   const [, setLocation] = useLocation();
@@ -104,11 +106,15 @@ export default function Checkout() {
   const queryClient = useQueryClient();
   const [orderComplete, setOrderComplete] = useState<CheckoutResponse | null>(null);
 
-  const form = useForm<CheckoutFormData>({
-    resolver: zodResolver(checkoutFormSchema),
+  const form = useForm<PCRequestFormData>({
+    resolver: zodResolver(pcRequestFormSchema),
     defaultValues: {
       customerName: "",
       customerEmail: "",
+      customerPhone: "",
+      customerCity: "",
+      customerBudget: "",
+      customerNotes: "",
     },
   });
 
@@ -122,8 +128,35 @@ export default function Checkout() {
   });
 
   const checkoutMutation = useMutation({
-    mutationFn: async (data: CheckoutFormData): Promise<CheckoutResponse> => {
-      const res = await apiRequest("POST", "/api/checkout/complete", data);
+    mutationFn: async (data: PCRequestFormData): Promise<CheckoutResponse> => {
+      if (!cart) throw new Error("Cart not found");
+
+      const subtotal = cart.items.reduce((sum, item) => sum + (item.part.price * item.quantity), 0);
+      const tax = subtotal * 0.0825;
+      const total = subtotal + tax;
+
+      const requestBody = {
+        customerName: data.customerName,
+        customerEmail: data.customerEmail,
+        customerPhone: data.customerPhone || undefined,
+        customerCity: data.customerCity || undefined,
+        customerBudget: data.customerBudget ? parseFloat(data.customerBudget) : undefined,
+        customerNotes: data.customerNotes || undefined,
+        items: cart.items.map(item => ({
+          partId: item.partId,
+          quantity: item.quantity,
+          partName: item.part.name,
+          partType: item.part.type,
+          partBrand: item.part.brand,
+          price: item.part.price,
+        })),
+        subtotal,
+        tax,
+        total,
+        currency: 'USD',
+      };
+
+      const res = await apiRequest("POST", "/api/pc-request", requestBody);
       return await res.json();
     },
     onSuccess: (response: CheckoutResponse) => {
@@ -132,12 +165,12 @@ export default function Checkout() {
       
       if (response.emailSent) {
         toast({
-          title: "Order Complete!",
+          title: "Request Sent!",
           description: response.message,
         });
       } else {
         toast({
-          title: "Order Complete",
+          title: "Request Sent",
           description: response.message,
           variant: "destructive",
         });
@@ -145,14 +178,14 @@ export default function Checkout() {
     },
     onError: (error: Error) => {
       toast({
-        title: "Checkout Failed",
-        description: error.message || "Failed to complete checkout. Please try again.",
+        title: "Request Failed",
+        description: error.message || "Failed to send request. Please try again.",
         variant: "destructive",
       });
     },
   });
 
-  const onSubmit = (data: CheckoutFormData) => {
+  const onSubmit = (data: PCRequestFormData) => {
     checkoutMutation.mutate(data);
   };
 
@@ -174,70 +207,50 @@ export default function Checkout() {
         
         <main className="flex-1 container py-12 px-4 md:px-8">
           <div className="max-w-2xl mx-auto">
-            <Card className="border-green-200 dark:border-green-800">
+            <Card className="border-blue-200 dark:border-blue-800">
               <CardHeader className="text-center pb-4">
-                <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                  <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
+                <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                  <CheckCircle2 className="h-8 w-8 text-blue-600 dark:text-blue-400" />
                 </div>
-                <CardTitle className="text-2xl font-bold" data-testid="text-order-success">
-                  Order Complete!
+                <CardTitle className="text-2xl font-bold" data-testid="text-request-success">
+                  PC Request Sent!
                 </CardTitle>
                 <CardDescription className="text-base">
-                  Thank you for your purchase
+                  Thank you for your request
                 </CardDescription>
               </CardHeader>
               
               <CardContent className="space-y-6">
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+                  <p className="text-blue-800 dark:text-blue-200 font-medium" data-testid="text-success-message">
+                    Your PC build request has been sent to an expert builder.
+                  </p>
+                  <p className="text-blue-700 dark:text-blue-300 text-sm mt-2">
+                    We will contact you through your email soon.
+                  </p>
+                </div>
+
                 <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Order Number:</span>
-                    <span className="font-mono font-semibold" data-testid="text-order-number">{orderComplete.orderNumber}</span>
-                  </div>
+                  <h3 className="font-semibold text-sm mb-3">Request Summary</h3>
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Items:</span>
-                    <span>{orderComplete.itemCount} {orderComplete.itemCount === 1 ? 'item' : 'items'}</span>
+                    <span>{cart?.itemCount || 0} {(cart?.itemCount || 0) === 1 ? 'item' : 'items'}</span>
                   </div>
                   <Separator />
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Subtotal:</span>
-                    <span>{formatCurrency(orderComplete.subtotal, orderComplete.currency)}</span>
+                    <span>{formatCurrency(subtotal)}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Tax:</span>
-                    <span>{formatCurrency(orderComplete.tax, orderComplete.currency)}</span>
+                    <span>{formatCurrency(tax)}</span>
                   </div>
                   <Separator />
                   <div className="flex justify-between items-center text-lg font-bold">
                     <span>Total:</span>
-                    <span className="text-primary" data-testid="text-order-total">{formatCurrency(orderComplete.total, orderComplete.currency)}</span>
+                    <span className="text-primary" data-testid="text-request-total">{formatCurrency(total)}</span>
                   </div>
                 </div>
-
-                {orderComplete.emailSent ? (
-                  <div className="flex items-center gap-3 p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-                    <Mail className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0" />
-                    <div>
-                      <p className="font-medium text-green-800 dark:text-green-200" data-testid="text-email-sent">
-                        Receipt emailed to ctechmtv@gmail.com
-                      </p>
-                      <p className="text-sm text-green-600 dark:text-green-400">
-                        Check your inbox for the order confirmation
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
-                    <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 shrink-0" />
-                    <div>
-                      <p className="font-medium text-yellow-800 dark:text-yellow-200" data-testid="text-email-error">
-                        Could not send email receipt
-                      </p>
-                      <p className="text-sm text-yellow-600 dark:text-yellow-400">
-                        {orderComplete.emailError || 'Please contact support for your receipt'}
-                      </p>
-                    </div>
-                  </div>
-                )}
               </CardContent>
 
               <CardFooter className="flex flex-col sm:flex-row gap-3">
@@ -323,8 +336,8 @@ export default function Checkout() {
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Parts
             </Button>
-            <h1 className="text-2xl md:text-3xl font-bold" data-testid="text-page-title">Checkout</h1>
-            <p className="text-muted-foreground mt-2">Complete your order to receive your parts</p>
+            <h1 className="text-2xl md:text-3xl font-bold" data-testid="text-page-title">PC Build Request</h1>
+            <p className="text-muted-foreground mt-2">Submit your build to an expert builder</p>
           </div>
 
           <div className="grid lg:grid-cols-5 gap-8">
@@ -332,11 +345,11 @@ export default function Checkout() {
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-2">
-                    <CreditCard className="h-5 w-5 text-primary" />
-                    <CardTitle>Billing Information</CardTitle>
+                    <User className="h-5 w-5 text-primary" />
+                    <CardTitle>Your Details</CardTitle>
                   </div>
                   <CardDescription>
-                    Enter your details to complete the order
+                    Fill in your information so an expert builder can contact you
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -387,23 +400,115 @@ export default function Checkout() {
                         )}
                       />
 
+                      <FormField
+                        control={form.control}
+                        name="customerPhone"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Phone Number (Optional)</FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                  data-testid="input-customer-phone"
+                                  type="tel"
+                                  placeholder="+1 (555) 000-0000"
+                                  className="pl-10"
+                                  {...field}
+                                />
+                              </div>
+                            </FormControl>
+                            <FormMessage data-testid="error-customer-phone" />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="customerCity"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>City / Region (Optional)</FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                  data-testid="input-customer-city"
+                                  placeholder="New York, NY"
+                                  className="pl-10"
+                                  {...field}
+                                />
+                              </div>
+                            </FormControl>
+                            <FormMessage data-testid="error-customer-city" />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="customerBudget"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Budget (Optional)</FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                  data-testid="input-customer-budget"
+                                  type="number"
+                                  placeholder="1500"
+                                  className="pl-10"
+                                  step="0.01"
+                                  {...field}
+                                />
+                              </div>
+                            </FormControl>
+                            <FormMessage data-testid="error-customer-budget" />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="customerNotes"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Notes / Special Requests (Optional)</FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                <Textarea
+                                  data-testid="input-customer-notes"
+                                  placeholder="Tell us about your preferences, performance goals, or any special requests..."
+                                  className="pl-10 pt-8"
+                                  rows={4}
+                                  {...field}
+                                />
+                                <FileText className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                              </div>
+                            </FormControl>
+                            <FormMessage data-testid="error-customer-notes" />
+                          </FormItem>
+                        )}
+                      />
+
                       <div className="pt-4">
                         <Button 
                           type="submit" 
                           size="lg" 
                           className="w-full"
                           disabled={checkoutMutation.isPending}
-                          data-testid="button-complete-order"
+                          data-testid="button-submit-request"
                         >
                           {checkoutMutation.isPending ? (
                             <>
                               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Processing...
+                              Sending Request...
                             </>
                           ) : (
                             <>
-                              <CreditCard className="h-4 w-4 mr-2" />
-                              Complete Order - {formatCurrency(total)}
+                              <Mail className="h-4 w-4 mr-2" />
+                              Submit Build Request
                             </>
                           )}
                         </Button>
@@ -419,7 +524,7 @@ export default function Checkout() {
                 <CardHeader className="pb-4">
                   <div className="flex items-center gap-2">
                     <ShoppingCart className="h-5 w-5 text-primary" />
-                    <CardTitle>Order Summary</CardTitle>
+                    <CardTitle>Build Summary</CardTitle>
                   </div>
                   <CardDescription>
                     {cart.itemCount} {cart.itemCount === 1 ? 'item' : 'items'} in your build
@@ -471,7 +576,7 @@ export default function Checkout() {
                   <div className="pt-2">
                     <Badge variant="outline" className="w-full justify-center py-2">
                       <Mail className="h-3 w-3 mr-2" />
-                      Receipt will be emailed to ctechmtv@gmail.com
+                      Request will be sent to an expert
                     </Badge>
                   </div>
                 </CardContent>

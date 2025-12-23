@@ -1,0 +1,75 @@
+Update the existing PC Guide Pro checkout flow to work as a manual PC request system instead of automatic billing:
+
+Post-checkout customer details form:
+
+After the user clicks the Place Order / Checkout button, do not process Stripe or any online payment.
+
+Instead, render a new form screen where the customer fills in their details, including:
+
+Full name
+
+Email address
+
+Phone number (optional)
+
+City / region
+
+Budget (optional)
+
+Any notes or special requests about the PC build
+
+Pre-fill or show a summary of their selected parts/cart on this page so they know what they are submitting.
+
+Send form data via Nodemailer:
+
+On form submit, send all customer details and cart/build information to ctechmtv@gmail.com using Nodemailer in the Node.js backend.
+
+Remove usage of Resend for this flow and rely on Nodemailer with SMTP configuration instead.
+
+Structure the email clearly with:
+
+Subject like: 'New PC Build Request – {customer name or timestamp}'
+
+Body containing:
+
+Customer contact details
+
+Selected parts list (names, quantities, and prices if available)
+
+Total estimated amount (if available)
+
+Any notes/special requests
+
+Success state and confirmation message:
+
+After the email is successfully sent, update the page state and replace the form with a confirmation message such as:
+
+'Your PC request has been sent to an expert builder. We will contact you through your email soon.'
+
+Optionally, show a small recap of their request below the message.
+
+Handle error states:
+
+If the email fails to send, show a friendly error message and allow the user to retry.
+
+Technical details:
+
+Implement a secure POST API endpoint (e.g., POST /api/pc-request) that:
+
+Validates required fields (name, email, etc.).
+
+Uses Nodemailer to send the email to ctechmtv@gmail.com.
+
+Returns success or error status to the frontend.
+
+On the frontend (React / Vite):
+
+Use form state and a loading flag.
+
+After successful submission (HTTP 200), switch the UI from the form to the success message state.
+
+Keep the existing blue/gray theme, minimal UI, and fast loading behavior.
+
+Ensure the flow integrates with the existing cart/parts system so that all selected parts are included in the email.
+
+Focus on replacing automated billing emails with a manual 'PC request to expert builder' flow that sends all necessary information via Nodemailer to ctechmtv@gmail.com and clearly informs the user that an expert will contact them by email soon.
