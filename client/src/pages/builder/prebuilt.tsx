@@ -81,7 +81,7 @@ export default function PrebuiltBuilds() {
             <CardFooter className="flex justify-between">
               <Button variant="outline" size="sm" asChild>
                 <a 
-                  href={`https://pcpartpicker.com/list/${build.id}`} 
+                  href={`https://in.pcpartpicker.com/list/${build.id}`} 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="flex items-center"
