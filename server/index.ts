@@ -7,8 +7,13 @@ import cors from 'cors';
 import http from 'http';
 
 // Verify required environment variables
-const requiredEnvVars = ['PERPLEXITY_API_KEY', 'SUPPORT_EMAIL', 'RESEND_API_KEY'];
+const requiredEnvVars = ['PERPLEXITY_API_KEY', 'SUPPORT_EMAIL'];
 const missingEnvVars = requiredEnvVars.filter(env => !process.env[env]);
+
+// Silent email configuration check - only log in development
+if (process.env.NODE_ENV === 'development') {
+  console.log('Email service:', process.env.GMAIL_USER ? 'Configured' : 'Using test account');
+}
 
 if (missingEnvVars.length > 0) {
   if (process.env.NODE_ENV === 'production') {
@@ -88,8 +93,17 @@ if (process.env.NODE_ENV !== 'development') {
 }
 
 const server = http.createServer(app);
-server.listen(PORT, '0.0.0.0', () => {
-  log(`Server running on http://localhost:${PORT}`);
-});
+
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  server.listen(PORT, '0.0.0.0', () => {
+    const env = process.env.NODE_ENV || 'development';
+    const frontendPort = env === 'development' ? '5000' : (process.env.PORT || '5000');
+    console.log(`\n=== PC Guide Pro ===`);
+    console.log(`Environment: ${env}`);
+    console.log(`Frontend:    http://localhost:${frontendPort}`);
+    console.log(`Backend API: http://localhost:${PORT}\n`);
+  });
+}
 
 export { app, server };
+export default app;

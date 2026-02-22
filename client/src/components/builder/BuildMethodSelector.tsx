@@ -1,5 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+
 import { Wrench, ListChecks, ChevronRight } from "lucide-react";
 
 type BuildMethod = 'custom' | 'prebuilt';
@@ -17,7 +17,7 @@ export function BuildMethodSelector({ onSelect }: BuildMethodSelectorProps) {
       >
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
-            <div className="space-y-4">
+            <div className="space-y-4 flex-1 pr-4">
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
                 <Wrench className="h-6 w-6 text-primary" />
               </div>
@@ -37,7 +37,7 @@ export function BuildMethodSelector({ onSelect }: BuildMethodSelectorProps) {
       >
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
-            <div className="space-y-4">
+            <div className="space-y-4 flex-1 pr-4">
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
                 <ListChecks className="h-6 w-6 text-primary" />
               </div>
