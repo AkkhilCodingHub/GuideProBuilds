@@ -22,14 +22,12 @@ const SupportTicketSchema = z.object({
 export type SupportTicket = z.infer<typeof SupportTicketSchema>;
 
 class SupportService {
-  private resend: Resend;
+  private resend: Resend | null = null;
 
   constructor() {
-    if (!process.env.RESEND_API_KEY || !process.env.SUPPORT_EMAIL) {
-      throw new Error('Email configuration is missing. Please check your environment variables.');
+    if (process.env.RESEND_API_KEY) {
+      this.resend = new Resend(process.env.RESEND_API_KEY);
     }
-
-    this.resend = new Resend(process.env.RESEND_API_KEY);
   }
 
   private formatSupportEmail(ticket: SupportTicket): string {
@@ -103,6 +101,11 @@ This is an automated confirmation. Please do not reply unless you have additiona
 
   async createTicket(ticket: SupportTicket): Promise<void> {
     try {
+      if (!this.resend) {
+        console.warn('Email service not configured - ticket not sent');
+        return;
+      }
+
       console.log('Creating ticket with data:', ticket);
       const validatedTicket = SupportTicketSchema.parse(ticket);
       const supportEmail = process.env.SUPPORT_EMAIL!;

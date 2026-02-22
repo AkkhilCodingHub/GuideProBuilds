@@ -190,6 +190,27 @@ export const checkoutSchema = z.object({
   customerEmail: z.string().email('Valid email is required')
 });
 
+export const pcRequestSchema = z.object({
+  customerName: z.string().min(1, 'Name is required'),
+  customerEmail: z.string().email('Valid email is required'),
+  customerPhone: z.string().optional(),
+  customerCity: z.string().optional(),
+  customerBudget: z.number().optional(),
+  customerNotes: z.string().optional(),
+  items: z.array(z.object({
+    partId: z.string(),
+    quantity: z.number(),
+    partName: z.string(),
+    partType: z.string(),
+    partBrand: z.string(),
+    price: z.number(),
+  })),
+  subtotal: z.number(),
+  tax: z.number(),
+  total: z.number(),
+  currency: z.string().default('USD'),
+});
+
 export const partsFilterSchema = z.object({
   type: z.string().optional(),
   brand: z.string().optional(),
