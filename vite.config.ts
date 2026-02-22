@@ -18,6 +18,8 @@ export default defineConfig({
     allowedHosts: [
       'all',
       '660e9c7f-3141-4dbd-8183-19ca3ca59670-00-8kbsm0162vfq.worf.replit.dev'
+      'c3b84242-00f7-4826-8ecd-eadfc2d1095b-00-1d4pgor8p63pn.worf.replit.dev',
+      'guideprobuilds.onrender.com'
     ],
     hmr: {
       protocol: 'ws',
