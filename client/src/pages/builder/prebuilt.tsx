@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "wouter";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { PREBUILT_BUILDS } from "@/lib/mockData";
 import { ArrowLeft, Search, ExternalLink } from "lucide-react";
 
 export default function PrebuiltBuilds() {
-  const navigate = useNavigate();
+  const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   
   const filteredBuilds = PREBUILT_BUILDS.filter(build => 
@@ -54,7 +54,7 @@ export default function PrebuiltBuilds() {
                     {build.category}
                   </Badge>
                 </div>
-                <span className="text-lg font-semibold">${build.totalPrice}</span>
+                <Badge variant="secondary" className="px-3 py-1 text-sm">₹{build.totalPrice.toLocaleString()}</Badge>
               </div>
               <CardDescription className="line-clamp-2">
                 {build.description}
@@ -65,7 +65,10 @@ export default function PrebuiltBuilds() {
                 {build.parts.slice(0, 4).map((part) => (
                   <div key={part.id} className="flex justify-between text-sm">
                     <span className="text-muted-foreground">{part.type.toUpperCase()}</span>
-                    <span className="font-medium truncate max-w-[180px]">{part.name}</span>
+                    <div className="flex items-center">
+                      <span className="font-medium truncate max-w-[180px] mr-2">{part.name}</span>
+                      <div className="font-bold font-mono self-end sm:self-center">₹{part.price.toLocaleString()}</div>
+                    </div>
                   </div>
                 ))}
                 {build.parts.length > 4 && (

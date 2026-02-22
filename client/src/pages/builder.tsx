@@ -8,9 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { generateBuild, Build } from "@/lib/mockData";
-import { Check, ChevronRight, RotateCcw, ShoppingCart, Share2, Wrench, ListChecks } from "lucide-react";
+import { Check, ChevronRight, RotateCcw, ShoppingCart, Share2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BuildMethodSelector } from "@/components/builder/BuildMethodSelector";
 
@@ -22,7 +21,7 @@ export default function Builder() {
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     useCase: "gaming",
-    budget: 1500,
+    budget: 150000,
     performance: "mid",
   });
   const [result, setResult] = useState<Build | null>(null);
@@ -41,7 +40,6 @@ export default function Builder() {
       navigate('/builder/prebuilt');
     } else {
       setBuildMethod(method);
-      nextStep();
     }
   };
 
@@ -51,7 +49,7 @@ export default function Builder() {
     setResult(null);
     setFormData({
       useCase: "gaming",
-      budget: 1500,
+      budget: 150000,
       performance: "mid",
     });
   };
@@ -61,7 +59,7 @@ export default function Builder() {
     return (
       <div className="min-h-screen bg-background flex flex-col">
         <Navbar />
-        <main className="flex-1 py-12 container px-4 md:px-8">
+        <main className="flex-1 py-12 container mx-auto px-4 md:px-8">
           <div className="max-w-4xl mx-auto text-center mb-12">
             <h1 className="text-3xl font-bold mb-4">Choose Your Build Method</h1>
             <p className="text-muted-foreground max-w-2xl mx-auto">
@@ -79,7 +77,7 @@ export default function Builder() {
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
       
-      <main className="flex-1 py-12 container px-4 md:px-8">
+      <main className="flex-1 py-12 container mx-auto px-4 md:px-8">
         <div className="max-w-4xl mx-auto">
           {/* Progress Indicator */}
           <div className="mb-12">
@@ -87,8 +85,8 @@ export default function Builder() {
               <div className="absolute left-0 top-1/2 w-full h-1 bg-secondary -z-10 rounded-full" />
               {[1, 2, 3, 4].map((s) => {
                 let label = '';
-                if (s === 1) label = 'Method';
-                else if (s === 2) label = 'Use Case';
+                if (s === 1) label = 'Use Case';
+                else if (s === 2) label = 'Budget';
                 else if (s === 3) label = 'Preferences';
                 else if (s === 4) label = 'Result';
                 
@@ -165,20 +163,20 @@ export default function Builder() {
                   </CardHeader>
                   <CardContent className="py-10 px-8 md:px-16">
                     <div className="mb-12 text-center">
-                      <span className="text-5xl font-bold text-primary">${formData.budget}</span>
+                      <span className="text-5xl font-bold text-primary">₹{formData.budget.toLocaleString()}</span>
                     </div>
                     <Slider
                       defaultValue={[formData.budget]}
-                      max={5000}
-                      min={500}
-                      step={50}
+                      max={400000}
+                      min={40000}
+                      step={2000}
                       onValueChange={(val) => setFormData({ ...formData, budget: val[0] })}
                       className="mb-8"
                     />
                     <div className="flex justify-between text-sm text-muted-foreground">
-                      <span>$500</span>
-                      <span>$2500</span>
-                      <span>$5000+</span>
+                      <span>₹40,000</span>
+                      <span>₹2,00,000</span>
+                      <span>₹4,00,000+</span>
                     </div>
                   </CardContent>
                   <CardFooter className="flex justify-between">
@@ -253,7 +251,7 @@ export default function Builder() {
                   <Badge className="mb-2">Recommended Build</Badge>
                   <h2 className="text-3xl md:text-4xl font-heading font-bold text-foreground mb-2">{result.name}</h2>
                   <p className="text-muted-foreground">{result.description}</p>
-                  <div className="mt-4 text-2xl font-bold text-primary">${result.totalPrice}</div>
+                  <div className="mt-4 text-2xl font-bold text-primary">₹{result.totalPrice.toLocaleString()}</div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -267,7 +265,7 @@ export default function Builder() {
                         {result.parts.map((part) => (
                           <div key={part.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-secondary/10 transition-colors">
                             <div className="flex items-start gap-4">
-                              <div className="w-12 h-12 rounded bg-secondary/30 flex items-center justify-center shrink-0">
+                              <div className="min-w-[4rem] px-2 h-12 rounded bg-secondary/30 flex items-center justify-center shrink-0">
                                 <span className="text-xs font-bold text-muted-foreground uppercase">{part.type}</span>
                               </div>
                               <div>
@@ -282,7 +280,14 @@ export default function Builder() {
                                 </div>
                               </div>
                             </div>
-                            <div className="font-bold font-mono self-end sm:self-center">${part.price}</div>
+                            <div className="flex flex-col items-end gap-2">
+                              <span className="font-bold font-mono self-end sm:self-center">₹{part.price.toLocaleString()}</span>
+                              {part.pcppLink && (
+                                <a href={part.pcppLink} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">
+                                  View on PC Part Picker <ChevronRight className="h-3 w-3" />
+                                </a>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -305,7 +310,7 @@ export default function Builder() {
                         </div>
                         <div className="pt-4 border-t border-border/50 flex justify-between items-center">
                            <span className="font-bold">Total</span>
-                           <span className="text-2xl font-bold text-primary">${result.totalPrice}</span>
+                           <span className="text-2xl font-bold text-primary">₹{result.totalPrice.toLocaleString()}</span>
                         </div>
                       </CardContent>
                       <CardFooter className="flex-col gap-3">
@@ -328,7 +333,7 @@ export default function Builder() {
                         <CardTitle className="text-lg">Build Notes</CardTitle>
                       </CardHeader>
                       <CardContent className="text-sm text-muted-foreground space-y-2">
-                        <p>• This build is optimized for your selected budget of ${formData.budget}.</p>
+                        <p>• This build is optimized for your selected budget of ₹{formData.budget.toLocaleString()}.</p>
                         <p>• The GPU selected is capable of high-performance gaming.</p>
                         <p>• Prices are estimates and may vary by retailer.</p>
                       </CardContent>

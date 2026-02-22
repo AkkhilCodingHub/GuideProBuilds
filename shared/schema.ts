@@ -61,7 +61,7 @@ const guideSchema = new Schema({
 
 // Bookmarked Guide Schema
 const bookmarkedGuideSchema = new Schema({
-  user: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   guide: { type: Schema.Types.ObjectId, ref: 'Guide', required: true },
   createdAt: { type: Date, default: Date.now }
 });
@@ -75,8 +75,8 @@ const priceHistorySchema = new Schema({
 
 // Cart Schema - for storing user's current build/cart
 const cartSchema = new Schema({
-  user: { type: Schema.Types.ObjectId, ref: 'User', index: true },
-  sessionId: { type: String, index: true },
+  user: { type: Schema.Types.ObjectId, ref: 'User' },
+  sessionId: { type: String },
   items: [{
     part: { type: Schema.Types.ObjectId, ref: 'Part', required: true },
     quantity: { type: Number, required: true, default: 1, min: 1 },

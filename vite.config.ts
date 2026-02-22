@@ -1,18 +1,18 @@
 // vite.config.ts
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import { fileURLToPath } from 'url';
-import { dirname, resolve } from 'path';
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import path, { dirname, resolve } from 'path'
+import { fileURLToPath } from 'url'
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 export default defineConfig({
-  root: './client',
+  root: resolve(__dirname, "client"),
   server: {
     port: 5000,
+<<<<<<< Updated upstream
     strictPort: true,
     host: "0.0.0.0",
     allowedHosts: [
@@ -21,6 +21,8 @@ export default defineConfig({
       'c3b84242-00f7-4826-8ecd-eadfc2d1095b-00-1d4pgor8p63pn.worf.replit.dev',
       'guideprobuilds.onrender.com'
     ],
+=======
+>>>>>>> Stashed changes
     hmr: {
       protocol: 'ws',
       host: 'localhost',
@@ -36,11 +38,7 @@ export default defineConfig({
       },
     },
   },
-  plugins: [
-    react(),
-    runtimeErrorOverlay(),
-    tailwindcss(),
-  ],
+  plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
       "@": resolve(__dirname, "client/src"),
@@ -51,5 +49,14 @@ export default defineConfig({
   build: {
     outDir: resolve(__dirname, "dist/public"),
     emptyOutDir: true,
+    chunkSizeWarningLimit: 2000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor': ['react', 'react-dom', 'wouter'],
+          'ui': ['@radix-ui/react-dialog', 'lucide-react', 'framer-motion']
+        }
+      }
+    }
   }
-});
+})

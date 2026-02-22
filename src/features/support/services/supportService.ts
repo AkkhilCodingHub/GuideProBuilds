@@ -1,12 +1,20 @@
-// src/features/support/services/supportService.ts
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 import { z } from 'zod';
 
 // Debug log environment variables
-console.log('Environment Variables:', {
-  RESEND_API_KEY: process.env.RESEND_API_KEY ? 'Set' : 'Not Set',
-  SUPPORT_EMAIL: process.env.SUPPORT_EMAIL ? 'Set' : 'Not Set',
-  NODE_ENV: process.env.NODE_ENV
+console.log('Email Configuration:', {
+  gmailUser: process.env.GMAIL_USER ? 'Set' : 'Not Set',
+  supportEmail: process.env.SUPPORT_EMAIL || 'Using default',
+  nodeEnv: process.env.NODE_ENV || 'development'
+});
+
+// Create a Nodemailer transporter
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER || 'ctechmtv@gmail.com',
+    pass: process.env.GMAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD,
+  },
 });
 
 const SupportTicketSchema = z.object({
@@ -38,64 +46,39 @@ class SupportService {
     });
     
     return `
-=====================================
-NEW SUPPORT TICKET - PC Guide Pro
-=====================================
-
-TICKET DETAILS
---------------
-Submitted: ${timestamp}
-Priority: ${ticket.priority.toUpperCase()}
-Category: ${ticket.category || 'General'}
-
-CONTACT INFORMATION
--------------------
-Name: ${ticket.name}
-Email: ${ticket.email}
-
-SUBJECT
--------
-${ticket.subject}
-
-MESSAGE
--------
-${ticket.message}
-
-=====================================
-Reply directly to this email to respond to the customer.
-=====================================
+      New Support Ticket:
+      ------------------
+      Time: ${timestamp}
+      From: ${ticket.name} <${ticket.email}>
+      Subject: ${ticket.subject}
+      Priority: ${ticket.priority}
+      ${ticket.category ? `Category: ${ticket.category}` : ''}
+      
+      Message:
+      ${ticket.message}
     `.trim();
   }
 
   private formatConfirmationEmail(ticket: SupportTicket): string {
     return `
-Dear ${ticket.name},
-
-Thank you for contacting PC Guide Pro Support. We have received your message and our team will review it shortly.
-
-TICKET SUMMARY
---------------
-Subject: ${ticket.subject}
-Priority: ${ticket.priority.charAt(0).toUpperCase() + ticket.priority.slice(1)}
-Category: ${ticket.category || 'General'}
-
-YOUR MESSAGE
-------------
-${ticket.message}
-
-WHAT'S NEXT?
-------------
-- Our support team typically responds within 24-48 hours
-- For urgent matters, please mark your ticket as "High" priority
-- Check our FAQ section for immediate answers to common questions
-
-If you have any additional information to add, simply reply to this email.
-
-Best regards,
-PC Guide Pro Support Team
-
----
-This is an automated confirmation. Please do not reply unless you have additional information to add to your request.
+      Thank you for contacting PC Guide Pro Support!
+      
+      We've received your support ticket and our team will get back to you as soon as possible.
+      
+      Ticket Details:
+      - Ticket ID: ${Date.now()}
+      - Subject: ${ticket.subject}
+      - Priority: ${ticket.priority}
+      ${ticket.category ? `- Category: ${ticket.category}` : ''}
+      
+      Your Message:
+      ${ticket.message}
+      
+      Best regards,
+      PC Guide Pro Support Team
+      
+      ---
+      This is an automated confirmation. Please do not reply unless you have additional information to add to your request.
     `.trim();
   }
 
@@ -106,45 +89,37 @@ This is an automated confirmation. Please do not reply unless you have additiona
         return;
       }
 
+<<<<<<< Updated upstream
       console.log('Creating ticket with data:', ticket);
+=======
+>>>>>>> Stashed changes
       const validatedTicket = SupportTicketSchema.parse(ticket);
-      const supportEmail = process.env.SUPPORT_EMAIL!;
+      const supportEmail = process.env.SUPPORT_EMAIL || 'ctechmtv@gmail.com';
+      const fromEmail = process.env.GMAIL_USER || 'ctechmtv@gmail.com';
 
       // Send detailed email to support team
-      const supportResponse = await this.resend.emails.send({
-        from: `"PC Guide Pro Support" <${supportEmail}>`,
+      await this.transporter.sendMail({
+        from: `"PC Guide Pro Support" <${fromEmail}>`,
         to: supportEmail,
         replyTo: validatedTicket.email,
-        subject: `[${validatedTicket.priority.toUpperCase()}] ${validatedTicket.subject}`,
+        subject: `[${validatedTicket.priority.toUpperCase()}] Support Ticket: ${validatedTicket.subject}`,
         text: this.formatSupportEmail(validatedTicket),
       });
 
-      if (supportResponse.error) {
-        throw new Error(`Failed to send support email: ${supportResponse.error.message}`);
-      }
-
-      console.log('Support email sent with ID:', supportResponse.data?.id);
-
       // Send confirmation to user only if requested
       if (validatedTicket.sendConfirmation) {
-        const userResponse = await this.resend.emails.send({
-          from: `"PC Guide Pro Support" <${supportEmail}>`,
+        await this.transporter.sendMail({
+          from: `"PC Guide Pro Support" <${fromEmail}>`,
           to: validatedTicket.email,
           subject: `Support Ticket Received: ${validatedTicket.subject}`,
           text: this.formatConfirmationEmail(validatedTicket),
         });
-
-        if (userResponse.error) {
-          console.warn(`Failed to send confirmation email: ${userResponse.error.message}`);
-          // Don't throw - the support ticket was still created successfully
-        } else {
-          console.log('Confirmation email sent with ID:', userResponse.data?.id);
-        }
       }
 
-    } catch (error: unknown) {
+      console.log('Support ticket created and notifications sent');
+    } catch (error) {
+      console.error('Error creating support ticket:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('Error in createTicket:', error);
       throw new Error(`Failed to create support ticket: ${errorMessage}`);
     }
   }
