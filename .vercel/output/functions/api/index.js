@@ -694,28 +694,179 @@ function getNodemailerTransporter() {
   }
   return transporter;
 }
+function formatCurrency(amount, currency = "USD") {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency
+  }).format(amount);
+}
+function formatDate(date) {
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric"
+  }).format(date);
+}
 function generateOrderEmailHtml(order) {
+  const itemsHtml = order.items.map((item) => `
+    <tr>
+      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
+        <strong style="color: #1f2937;">${item.partName}</strong>
+        <br>
+        <span style="color: #6b7280; font-size: 14px;">${item.partBrand} - ${item.partType}</span>
+      </td>
+      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center; color: #1f2937;">
+        ${item.quantity}
+      </td>
+      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #1f2937;">
+        ${formatCurrency(item.price, order.currency)}
+      </td>
+      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #1f2937; font-weight: 600;">
+        ${formatCurrency(item.price * item.quantity, order.currency)}
+      </td>
+    </tr>
+  `).join("");
   return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2>Order Confirmation #${order.orderNumber}</h2>
-      <p>Thank you for your order, ${order.customerName}!</p>
-      <!-- Add more HTML content as needed -->
-    </div>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Order Confirmation - PC Guide Pro</title>
+    </head>
+    <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+      <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td style="padding: 40px 20px;">
+            <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+              
+              <!-- Header -->
+              <tr>
+                <td style="background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); padding: 32px; text-align: center;">
+                  <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700;">PC Guide Pro</h1>
+                  <p style="margin: 8px 0 0; color: #93c5fd; font-size: 16px;">Order Confirmation</p>
+                </td>
+              </tr>
+
+              <!-- Order Details -->
+              <tr>
+                <td style="padding: 32px;">
+                  <div style="background-color: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+                    <p style="margin: 0; color: #166534; font-size: 16px;">
+                      <strong>Order Confirmed!</strong> Thank you for your purchase.
+                    </p>
+                  </div>
+
+                  <table style="width: 100%; margin-bottom: 24px;">
+                    <tr>
+                      <td style="padding: 8px 0;">
+                        <strong style="color: #6b7280;">Order Number:</strong>
+                        <span style="color: #1f2937; font-weight: 600;">${order.orderNumber}</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 0;">
+                        <strong style="color: #6b7280;">Date:</strong>
+                        <span style="color: #1f2937;">${formatDate(order.createdAt)}</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 0;">
+                        <strong style="color: #6b7280;">Customer:</strong>
+                        <span style="color: #1f2937;">${order.customerName}</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 0;">
+                        <strong style="color: #6b7280;">Email:</strong>
+                        <span style="color: #1f2937;">${order.customerEmail}</span>
+                      </td>
+                    </tr>
+                  </table>
+
+                  <h2 style="margin: 0 0 16px; color: #1f2937; font-size: 18px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">Order Summary</h2>
+
+                  <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+                    <thead>
+                      <tr style="background-color: #f9fafb;">
+                        <th style="padding: 12px; text-align: left; color: #6b7280; font-size: 14px; font-weight: 600;">Item</th>
+                        <th style="padding: 12px; text-align: center; color: #6b7280; font-size: 14px; font-weight: 600;">Qty</th>
+                        <th style="padding: 12px; text-align: right; color: #6b7280; font-size: 14px; font-weight: 600;">Price</th>
+                        <th style="padding: 12px; text-align: right; color: #6b7280; font-size: 14px; font-weight: 600;">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${itemsHtml}
+                    </tbody>
+                  </table>
+
+                  <!-- Totals -->
+                  <table style="width: 100%; max-width: 250px; margin-left: auto;">
+                    <tr>
+                      <td style="padding: 8px 0; color: #6b7280;">Subtotal:</td>
+                      <td style="padding: 8px 0; text-align: right; color: #1f2937;">${formatCurrency(order.subtotal, order.currency)}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 0; color: #6b7280;">Tax:</td>
+                      <td style="padding: 8px 0; text-align: right; color: #1f2937;">${formatCurrency(order.tax, order.currency)}</td>
+                    </tr>
+                    <tr style="border-top: 2px solid #1e3a5f;">
+                      <td style="padding: 12px 0; color: #1f2937; font-weight: 700; font-size: 18px;">Total:</td>
+                      <td style="padding: 12px 0; text-align: right; color: #2563eb; font-weight: 700; font-size: 18px;">${formatCurrency(order.total, order.currency)}</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Footer -->
+              <tr>
+                <td style="background-color: #f9fafb; padding: 24px; text-align: center; border-top: 1px solid #e5e7eb;">
+                  <p style="margin: 0 0 8px; color: #6b7280; font-size: 14px;">
+                    Questions about your order? Contact us at
+                    <a href="mailto:${SUPPORT_EMAIL}" style="color: #2563eb; text-decoration: none;">${SUPPORT_EMAIL}</a>
+                  </p>
+                  <p style="margin: 0; color: #9ca3af; font-size: 12px;">
+                    PC Guide Pro - Build Your Dream PC Without The Guesswork
+                  </p>
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
   `;
 }
 function generateOrderEmailText(order) {
+  const itemsList = order.items.map(
+    (item) => `  - ${item.partName} (${item.partBrand} - ${item.partType})
+    Qty: ${item.quantity} x ${formatCurrency(item.price, order.currency)} = ${formatCurrency(item.price * item.quantity, order.currency)}`
+  ).join("\n");
   return `
-    Order Confirmation #${order.orderNumber}
-    Thank you for your order, ${order.customerName}!
-    // Add more text content as needed
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>New PC Build Request</h2>
+      <p>Customer: ${order.customerName}</p>
+      <!-- Add more HTML content as needed -->
+    </div>
   `;
 }
 function generatePCRequestEmailHtml(request) {
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2>New PC Build Request</h2>
-      <p>Customer: ${request.customerName}</p>
-      <!-- Add more HTML content as needed -->
+      <p><strong>Customer:</strong> ${request.customerName}</p>
+      <p><strong>Email:</strong> ${request.customerEmail}</p>
+      ${request.customerPhone ? `<p><strong>Phone:</strong> ${request.customerPhone}</p>` : ""}
+      ${request.customerCity ? `<p><strong>City:</strong> ${request.customerCity}</p>` : ""}
+      ${request.customerBudget ? `<p><strong>Budget:</strong> ${formatCurrency(request.customerBudget, request.currency)}</p>` : ""}
+      ${request.customerNotes ? `<p><strong>Notes:</strong> ${request.customerNotes}</p>` : ""}
+      <h3>Requested Components</h3>
+      <ul>
+        ${request.items.map((item) => `<li>${item.partName} (${item.partBrand} - ${item.partType}) x ${item.quantity}</li>`).join("")}
+      </ul>
+      <p><strong>Total:</strong> ${formatCurrency(request.total, request.currency)}</p>
     </div>
   `;
 }
@@ -1450,6 +1601,11 @@ var vite_config_default = defineConfig({
   root: resolve(__dirname, "client"),
   server: {
     port: 5e3,
+    strictPort: true,
+    host: "0.0.0.0",
+    allowedHosts: [
+      "all"
+    ],
     hmr: {
       protocol: "ws",
       host: "localhost",
@@ -1475,7 +1631,16 @@ var vite_config_default = defineConfig({
   },
   build: {
     outDir: resolve(__dirname, "dist/public"),
-    emptyOutDir: true
+    emptyOutDir: true,
+    chunkSizeWarningLimit: 2e3,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor": ["react", "react-dom", "wouter"],
+          "ui": ["@radix-ui/react-dialog", "lucide-react", "framer-motion"]
+        }
+      }
+    }
   }
 });
 
@@ -1533,9 +1698,7 @@ var SupportTicketSchema = z2.object({
   sendConfirmation: z2.boolean().default(true)
 });
 var SupportService = class {
-  transporter;
   constructor() {
-    this.transporter = transporter2;
   }
   formatSupportEmail(ticket) {
     const timestamp = (/* @__PURE__ */ new Date()).toLocaleString("en-US", {
@@ -1580,10 +1743,11 @@ var SupportService = class {
   }
   async createTicket(ticket) {
     try {
+      console.log("Creating ticket with data:", ticket);
       const validatedTicket = SupportTicketSchema.parse(ticket);
       const supportEmail = process.env.SUPPORT_EMAIL || "ctechmtv@gmail.com";
       const fromEmail = process.env.GMAIL_USER || "ctechmtv@gmail.com";
-      await this.transporter.sendMail({
+      await transporter2.sendMail({
         from: `"PC Guide Pro Support" <${fromEmail}>`,
         to: supportEmail,
         replyTo: validatedTicket.email,
@@ -1591,7 +1755,7 @@ var SupportService = class {
         text: this.formatSupportEmail(validatedTicket)
       });
       if (validatedTicket.sendConfirmation) {
-        await this.transporter.sendMail({
+        await transporter2.sendMail({
           from: `"PC Guide Pro Support" <${fromEmail}>`,
           to: validatedTicket.email,
           subject: `Support Ticket Received: ${validatedTicket.subject}`,

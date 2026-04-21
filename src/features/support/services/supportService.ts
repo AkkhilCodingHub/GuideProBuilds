@@ -30,12 +30,7 @@ const SupportTicketSchema = z.object({
 export type SupportTicket = z.infer<typeof SupportTicketSchema>;
 
 class SupportService {
-  private resend: Resend | null = null;
-
   constructor() {
-    if (process.env.RESEND_API_KEY) {
-      this.resend = new Resend(process.env.RESEND_API_KEY);
-    }
   }
 
   private formatSupportEmail(ticket: SupportTicket): string {
@@ -84,21 +79,14 @@ class SupportService {
 
   async createTicket(ticket: SupportTicket): Promise<void> {
     try {
-      if (!this.resend) {
-        console.warn('Email service not configured - ticket not sent');
-        return;
-      }
 
-<<<<<<< Updated upstream
       console.log('Creating ticket with data:', ticket);
-=======
->>>>>>> Stashed changes
       const validatedTicket = SupportTicketSchema.parse(ticket);
       const supportEmail = process.env.SUPPORT_EMAIL || 'ctechmtv@gmail.com';
       const fromEmail = process.env.GMAIL_USER || 'ctechmtv@gmail.com';
 
       // Send detailed email to support team
-      await this.transporter.sendMail({
+      await transporter.sendMail({
         from: `"PC Guide Pro Support" <${fromEmail}>`,
         to: supportEmail,
         replyTo: validatedTicket.email,
@@ -108,7 +96,7 @@ class SupportService {
 
       // Send confirmation to user only if requested
       if (validatedTicket.sendConfirmation) {
-        await this.transporter.sendMail({
+        await transporter.sendMail({
           from: `"PC Guide Pro Support" <${fromEmail}>`,
           to: validatedTicket.email,
           subject: `Support Ticket Received: ${validatedTicket.subject}`,

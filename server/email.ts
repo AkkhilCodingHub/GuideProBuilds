@@ -1,25 +1,11 @@
-<<<<<<< Updated upstream
-import { Resend } from 'resend';
 import nodemailer from 'nodemailer';
 import { IOrder, IOrderItem } from '@shared/schema';
 
 const BILLING_EMAIL = 'ctechmtv@gmail.com';
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || BILLING_EMAIL;
 
-<<<<<<< Updated upstream
-let resend: Resend | null = null;
 let transporter: nodemailer.Transporter | null = null;
 
-function getResendClient(): Resend | null {
-  if (!process.env.RESEND_API_KEY) {
-    console.warn('RESEND_API_KEY not set - email functionality will be disabled');
-    return null;
-  }
-  if (!resend) {
-    resend = new Resend(process.env.RESEND_API_KEY);
-  }
-  return resend;
-}
 
 function getNodemailerTransporter(): nodemailer.Transporter {
   if (!transporter) {
@@ -229,8 +215,27 @@ function generateOrderEmailText(order: OrderEmailData): string {
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2>New PC Build Request</h2>
-      <p>Customer: ${request.customerName}</p>
+      <p>Customer: ${order.customerName}</p>
       <!-- Add more HTML content as needed -->
+    </div>
+  `;
+}
+
+function generatePCRequestEmailHtml(request: PCRequestData): string {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>New PC Build Request</h2>
+      <p><strong>Customer:</strong> ${request.customerName}</p>
+      <p><strong>Email:</strong> ${request.customerEmail}</p>
+      ${request.customerPhone ? `<p><strong>Phone:</strong> ${request.customerPhone}</p>` : ''}
+      ${request.customerCity ? `<p><strong>City:</strong> ${request.customerCity}</p>` : ''}
+      ${request.customerBudget ? `<p><strong>Budget:</strong> ${formatCurrency(request.customerBudget, request.currency)}</p>` : ''}
+      ${request.customerNotes ? `<p><strong>Notes:</strong> ${request.customerNotes}</p>` : ''}
+      <h3>Requested Components</h3>
+      <ul>
+        ${request.items.map(item => `<li>${item.partName} (${item.partBrand} - ${item.partType}) x ${item.quantity}</li>`).join('')}
+      </ul>
+      <p><strong>Total:</strong> ${formatCurrency(request.total, request.currency)}</p>
     </div>
   `;
 }
