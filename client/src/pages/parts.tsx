@@ -80,7 +80,7 @@ export default function Parts() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState<string>("all");
   const [selectedBrand, setSelectedBrand] = useState<string>("all");
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 2000]);
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 200000]);
   const [inStockOnly, setInStockOnly] = useState(false);
   const [sortBy, setSortBy] = useState<string>("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
@@ -98,7 +98,7 @@ export default function Parts() {
       if (selectedType !== "all") params.append("type", selectedType);
       if (selectedBrand !== "all") params.append("brand", selectedBrand);
       if (priceRange[0] > 0) params.append("minPrice", priceRange[0].toString());
-      if (priceRange[1] < 2000) params.append("maxPrice", priceRange[1].toString());
+      if (priceRange[1] < 200000) params.append("maxPrice", priceRange[1].toString());
       if (inStockOnly) params.append("inStock", "true");
       if (searchQuery) params.append("query", searchQuery);
       params.append("sortBy", sortBy);
@@ -213,7 +213,7 @@ export default function Parts() {
   const resetFilters = () => {
     setSelectedType("all");
     setSelectedBrand("all");
-    setPriceRange([0, 2000]);
+    setPriceRange([0, 200000]);
     setInStockOnly(false);
     setSortBy("name");
     setSortOrder("asc");
@@ -294,13 +294,13 @@ export default function Parts() {
                 {/* Price Range */}
                 <div>
                   <label className="text-sm font-medium mb-2 block">
-                    Price Range: ${priceRange[0]} - ${priceRange[1]}
+                    Price Range: ₹{priceRange[0].toLocaleString()} - ₹{priceRange[1].toLocaleString()}
                   </label>
                   <Slider
                     value={priceRange}
                     onValueChange={(v) => setPriceRange(v as [number, number])}
                     min={0}
-                    max={2000}
+                    max={200000}
                     step={50}
                     className="mt-2"
                   />
@@ -416,7 +416,7 @@ export default function Parts() {
                             <div className="flex-1 min-w-0">
                               <p className="font-medium truncate">{item.part.name}</p>
                               <p className="text-sm text-muted-foreground">
-                                ${item.part.price.toFixed(2)}
+                                ₹{item.part.price.toLocaleString()}
                               </p>
                             </div>
                             <div className="flex items-center gap-1">
@@ -468,7 +468,7 @@ export default function Parts() {
                       <div className="border-t pt-4 mt-4">
                         <div className="flex justify-between items-center text-lg font-bold">
                           <span>Total</span>
-                          <span>${cart.total.toFixed(2)}</span>
+                          <span>₹{cart.total.toLocaleString()}</span>
                         </div>
                         <Button 
                           className="w-full mt-4" 
@@ -536,7 +536,7 @@ export default function Parts() {
                       </CardHeader>
                       <CardContent className="pb-2">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-2xl font-bold">${part.price.toFixed(2)}</span>
+                          <span className="text-2xl font-bold">₹{part.price.toLocaleString()}</span>
                           <div className="flex items-center gap-1 text-sm text-muted-foreground">
                             <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
                             <span>{part.rating?.toFixed(1) || "4.0"}</span>

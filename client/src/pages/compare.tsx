@@ -41,7 +41,7 @@ export default function Compare() {
              </CardHeader>
              <CardContent className="flex flex-col gap-4">
                 <div className="h-12 flex items-center text-2xl font-bold text-primary border-b border-border/50 md:border-none">
-                    ${build1.totalPrice}
+                    ₹{build1.totalPrice.toLocaleString()}
                 </div>
                 <div className="h-12 flex items-center border-b border-border/50 md:border-none">
                     <span className="md:hidden font-bold mr-2">CPU:</span> {build1.parts.find(p => p.type === 'cpu')?.name}
@@ -73,7 +73,7 @@ export default function Compare() {
              </CardHeader>
              <CardContent className="flex flex-col gap-4">
                 <div className="h-12 flex items-center text-2xl font-bold text-foreground border-b border-border/50 md:border-none">
-                    ${build2.totalPrice}
+                    ₹{build2.totalPrice.toLocaleString()}
                 </div>
                 <div className="h-12 flex items-center border-b border-border/50 md:border-none">
                     <span className="md:hidden font-bold mr-2">CPU:</span> {build2.parts.find(p => p.type === 'cpu')?.name}

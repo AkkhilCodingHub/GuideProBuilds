@@ -34,7 +34,7 @@ import {
   Layers,
   Phone,
   MapPin,
-  DollarSign,
+  IndianRupee,
   FileText
 } from "lucide-react";
 
@@ -153,7 +153,7 @@ export default function Checkout() {
         subtotal,
         tax,
         total,
-        currency: 'USD',
+        currency: 'INR',
       };
 
       const res = await apiRequest("POST", "/api/pc-request", requestBody);
@@ -189,10 +189,11 @@ export default function Checkout() {
     checkoutMutation.mutate(data);
   };
 
-  const formatCurrency = (amount: number, currency: string = 'USD') => {
-    return new Intl.NumberFormat('en-US', {
+  const formatCurrency = (amount: number, currency: string = 'INR') => {
+    return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: currency,
+      maximumFractionDigits: 0,
     }).format(amount);
   };
 
@@ -453,7 +454,7 @@ export default function Checkout() {
                             <FormLabel>Budget (Optional)</FormLabel>
                             <FormControl>
                               <div className="relative">
-                                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
                                   data-testid="input-customer-budget"
                                   type="number"
