@@ -386,6 +386,25 @@ function generatePCRequestEmailHtml(request: PCRequestData): string {
   `;
 }
 
+function generatePCRequestEmailHtml(request: PCRequestData): string {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>New PC Build Request</h2>
+      <p><strong>Customer:</strong> ${request.customerName}</p>
+      <p><strong>Email:</strong> ${request.customerEmail}</p>
+      ${request.customerPhone ? `<p><strong>Phone:</strong> ${request.customerPhone}</p>` : ''}
+      ${request.customerCity ? `<p><strong>City:</strong> ${request.customerCity}</p>` : ''}
+      ${request.customerBudget ? `<p><strong>Budget:</strong> ${formatCurrency(request.customerBudget, request.currency)}</p>` : ''}
+      ${request.customerNotes ? `<p><strong>Notes:</strong> ${request.customerNotes}</p>` : ''}
+      <h3>Requested Components</h3>
+      <ul>
+        ${request.items.map(item => `<li>${item.partName} (${item.partBrand} - ${item.partType}) x ${item.quantity}</li>`).join('')}
+      </ul>
+      <p><strong>Total:</strong> ${formatCurrency(request.total, request.currency)}</p>
+    </div>
+  `;
+}
+
 export interface SendBillingEmailResult {
   success: boolean;
   error?: string;
