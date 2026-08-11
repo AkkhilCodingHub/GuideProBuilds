@@ -1,13 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Disable strict ESM checks if importing from CommonJS files
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  reactStrictMode: true,
+  productionBrowserSourceMaps: false,
   typescript: {
     ignoreBuildErrors: false,
-  }
+  },
+  experimental: {
+    optimizePackageImports: ["lucide-react", "framer-motion", "three", "date-fns"],
+  },
 };
 
 export default nextConfig;

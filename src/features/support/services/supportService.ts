@@ -1,14 +1,12 @@
 import nodemailer from 'nodemailer';
 import { z } from 'zod';
 
-// Debug log environment variables
 console.log('Email Configuration:', {
   gmailUser: process.env.GMAIL_USER ? 'Set' : 'Not Set',
   supportEmail: process.env.SUPPORT_EMAIL || 'Using default',
   nodeEnv: process.env.NODE_ENV || 'development'
 });
 
-// Create a Nodemailer transporter
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -85,7 +83,6 @@ class SupportService {
       const supportEmail = process.env.SUPPORT_EMAIL || 'ctechmtv@gmail.com';
       const fromEmail = process.env.GMAIL_USER || 'ctechmtv@gmail.com';
 
-      // Send detailed email to support team
       await transporter.sendMail({
         from: `"PC Guide Pro Support" <${fromEmail}>`,
         to: supportEmail,
@@ -94,7 +91,6 @@ class SupportService {
         text: this.formatSupportEmail(validatedTicket),
       });
 
-      // Send confirmation to user only if requested
       if (validatedTicket.sendConfirmation) {
         await transporter.sendMail({
           from: `"PC Guide Pro Support" <${fromEmail}>`,
