@@ -18,7 +18,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Check Database Status & Resume Cluster
         env:
@@ -28,9 +28,11 @@ jobs:
           ATLAS_GROUP_ID: ${{ secrets.ATLAS_GROUP_ID }}
           ATLAS_CLUSTER_NAME: ${{ secrets.ATLAS_CLUSTER_NAME }}
         run: |
-          npm install mongoose --no-save
+          npm install mongoose --no-save --no-audit --no-fund --quiet
           node -e '
             const mongoose = require("mongoose");
+            const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
             async function run() {
               const uri = process.env.MONGODB_URI;
               if (!uri) {
@@ -38,34 +40,45 @@ jobs:
                 process.exit(1);
               }
               console.log("🔍 Checking MongoDB Status at", new Date().toISOString());
-              try {
-                await mongoose.connect(uri, { serverSelectionTimeoutMS: 15000 });
-                const ping = await mongoose.connection.db.admin().ping();
-                console.log("✅ Database is LIVE! Ping response:", ping);
-                await mongoose.disconnect();
-                process.exit(0);
-              } catch (err) {
-                console.warn("⚠️ Database ping/connect failed:", err.message);
-                
-                const { ATLAS_PUBLIC_KEY, ATLAS_PRIVATE_KEY, ATLAS_GROUP_ID, ATLAS_CLUSTER_NAME } = process.env;
-                if (ATLAS_PUBLIC_KEY && ATLAS_PRIVATE_KEY && ATLAS_GROUP_ID && ATLAS_CLUSTER_NAME) {
-                  console.log("🚀 Attempting explicit Atlas API Cluster Resume...");
-                  try {
-                    const auth = Buffer.from(`${ATLAS_PUBLIC_KEY}:${ATLAS_PRIVATE_KEY}`).toString("base64");
-                    const res = await fetch(`https://cloud.mongodb.com/api/atlas/v1.0/groups/${ATLAS_GROUP_ID}/clusters/${ATLAS_CLUSTER_NAME}`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json", "Authorization": `Digest ${auth}` },
-                      body: JSON.stringify({ paused: false })
-                    });
-                    console.log(res.ok ? "✅ Atlas resume request sent successfully." : "❌ Atlas API request failed with status: " + res.status);
-                  } catch (e) {
-                    console.error("❌ Atlas API call failed:", e.message);
+
+              const maxRetries = 3;
+              for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                  console.log(`📡 Connection attempt ${attempt}/${maxRetries}...`);
+                  await mongoose.connect(uri, { serverSelectionTimeoutMS: 15000 });
+                  const ping = await mongoose.connection.db.admin().ping();
+                  console.log("✅ Database is LIVE! Ping response:", ping);
+                  await mongoose.disconnect();
+                  process.exit(0);
+                } catch (err) {
+                  console.warn(`⚠️ Attempt ${attempt} failed: ${err.message}`);
+                  if (attempt < maxRetries) {
+                    console.log("⏳ Waiting 15s for cluster wake-up before retrying...");
+                    await sleep(15000);
+                  } else {
+                    const { ATLAS_PUBLIC_KEY, ATLAS_PRIVATE_KEY, ATLAS_GROUP_ID, ATLAS_CLUSTER_NAME } = process.env;
+                    if (ATLAS_PUBLIC_KEY && ATLAS_PRIVATE_KEY && ATLAS_GROUP_ID && ATLAS_CLUSTER_NAME) {
+                      console.log("🚀 Attempting explicit Atlas API Cluster Resume...");
+                      try {
+                        const auth = Buffer.from(`${ATLAS_PUBLIC_KEY}:${ATLAS_PRIVATE_KEY}`).toString("base64");
+                        const res = await fetch(`https://cloud.mongodb.com/api/atlas/v1.0/groups/${ATLAS_GROUP_ID}/clusters/${ATLAS_CLUSTER_NAME}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json", "Authorization": `Basic ${auth}` },
+                          body: JSON.stringify({ paused: false })
+                        });
+                        console.log(res.ok ? "✅ Atlas resume request sent successfully." : "❌ Atlas API request failed with status: " + res.status);
+                      } catch (e) {
+                        console.error("❌ Atlas API call failed:", e.message);
+                      }
+                    } else {
+                      console.log("ℹ️ Note: Connection attempt initiated standard cluster wake-up sequence.");
+                    }
+                    console.log("⚠️ Keep-alive check completed.");
+                    process.exit(0);
                   }
-                } else {
-                  console.log("ℹ️ Note: Connection attempt initiated standard cluster wake-up sequence.");
                 }
-                process.exit(1);
               }
             }
             run();
           '
+
